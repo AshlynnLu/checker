@@ -344,11 +344,18 @@ def _load_base_table(path: str) -> List[Dict[str, Optional[float]]]:
         b_val = row.get("B", "").strip()
         if b_val not in ("主", "客"):
             continue
-        d_val = row.get("D", "").strip()
-        f_val = row.get("F", "").strip()
+        d_raw = row.get("D", "").strip()
+        f_raw = row.get("F", "").strip()
         ab_val = row.get("AB", "").strip()
         if not ab_val:
             continue  # 没有结果的行跳过
+
+        try:
+            d_val = str(round(float(d_raw), 2))
+            f_val = str(round(float(f_raw), 2))
+        except (ValueError, TypeError):
+            d_val = d_raw
+            f_val = f_raw
 
         parsed: Dict[str, Any] = {
             "side": b_val,
@@ -360,7 +367,7 @@ def _load_base_table(path: str) -> List[Dict[str, Optional[float]]]:
             raw = row.get(col, "").strip()
             if raw:
                 try:
-                    parsed[col] = float(raw)
+                    parsed[col] = round(float(raw), 2)
                 except ValueError:
                     parsed[col] = None
             else:
