@@ -452,10 +452,6 @@
         </div>
         
         <div class="result-section" id="resultSection">
-            <div class="result-card" id="rangeResult" style="display:none;">
-                <div class="result-title">数据范围检查</div>
-                <div id="rangeContent"></div>
-            </div>
             <div class="result-card" id="summaryResult">
                 <div class="result-title">2026 手工形态汇总类型库（已人工验证）</div>
                 <div class="result-status" id="summaryStatus"></div>
@@ -522,9 +518,6 @@
                     // 检查 2026 汇总类型库匹配
                     const summaryMatched = checkSummaryTypes(data);
 
-                    // 检查列范围
-                    const rangeWarnings = checkColumnRanges(data);
-
                     // 显示结果
                     displayResult({
                         summary: {
@@ -532,7 +525,6 @@
                             count: summaryMatched.length,
                             types: summaryMatched
                         },
-                        rangeWarnings: rangeWarnings,
                         rowData: data
                     });
                 } catch (error) {
@@ -546,29 +538,6 @@
         
         function displayResult(result) {
             const inputData = result.rowData || {};
-            // 数据范围检查
-            const rangeCard = document.getElementById('rangeResult');
-            const rangeContent = document.getElementById('rangeContent');
-            const warnings = result.rangeWarnings || [];
-            if (warnings.length > 0) {
-                rangeCard.style.display = 'block';
-                rangeCard.className = 'result-card not-matched';
-                const colNameMap = {G:'G(上水)',I:'I(水差)',L:'L(澳平)',O:'O(马主)',P:'P(马平)',U:'U(主差)',V:'V(平差)',W:'W(客差)',X:'X(澳平客差)'};
-                let whtml = '<div style="color:#e53935;font-weight:600;margin-bottom:8px;">&#9888; 以下列的值超出该分组历史数据范围：</div>';
-                for (const w of warnings) {
-                    const name = colNameMap[w.col] || w.col;
-                    const dir = w.value < w.min ? '低于最小值' : '高于最大值';
-                    whtml += `<div style="padding:4px 0;font-size:13px;">
-                        <strong>${name}</strong>：输入值 <span style="color:#e53935;font-weight:700">${w.value}</span> ${dir}
-                        （历史范围：${w.min} ~ ${w.max}）
-                    </div>`;
-                }
-                rangeContent.innerHTML = whtml;
-            } else {
-                rangeCard.style.display = 'block';
-                rangeCard.className = 'result-card matched';
-                rangeContent.innerHTML = '<div style="color:#4caf50;font-weight:600;">&#10003; 所有列的值均在该分组历史数据范围内</div>';
-            }
 
             // 2026 手工汇总类型库
             const summary = result.summary;
@@ -633,13 +602,14 @@
                                     const v = parseFloat(inputData[col]);
                                     if (isNaN(v)) continue;
                                     if (v < r.min || v > r.max) {
-                                        exceeded.push(r.name);
+                                        const dir = v < r.min ? '低于' : '高于';
+                                        exceeded.push(r.name + '超出（' + v + ' ' + dir + ' ' + r.min + '~' + r.max + '）');
                                     }
                                 }
                                 if (exceeded.length === 0) {
                                     return '<span style="color:#4caf50">范围内</span>';
                                 }
-                                return '<span style="color:#e53935">' + exceeded.join('、') + '超出</span>';
+                                return '<span style="color:#e53935">' + exceeded.join('，') + '</span>';
                             })()}<br>
                             ${mark ? `<strong>标注：</strong>${mark}<br>` : ''}
                             ${tip ? `<span style="color:#e53935;font-weight:600"><strong>提示：</strong>${tip}</span>` : ''}
@@ -728,33 +698,6 @@
         return matched;
     }
 
-        function checkColumnRanges(rowData) {
-            const warnings = [];
-            if (!summaryTypesData || !summaryTypesData.column_ranges) return warnings;
-
-            const B = String(rowData.B || '').trim();
-            const D = String(rowData.D || '').trim();
-            const F = String(rowData.F || '').trim();
-            if (B !== '主' && B !== '客') return warnings;
-
-            const key = B + '|' + D + '|' + F;
-            const ranges = summaryTypesData.column_ranges[key];
-            if (!ranges) return warnings;
-
-            const checkCols = ['G','I','L','O','P','U','V','W','X'];
-            for (const col of checkCols) {
-                const raw = rowData[col];
-                if (raw === null || raw === undefined || raw === '') continue;
-                const v = parseFloat(raw);
-                if (isNaN(v)) continue;
-                const r = ranges[col];
-                if (!r) continue;
-                if (v < r.min || v > r.max) {
-                    warnings.push({col: col, value: Math.round(v * 1e6) / 1e6, min: r.min, max: r.max});
-                }
-            }
-            return warnings;
-        }
 
         function parsePastedData() {
             const pasteText = document.getElementById('pasteData').value.trim();
