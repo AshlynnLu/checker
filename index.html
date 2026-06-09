@@ -532,7 +532,8 @@
                             count: summaryMatched.length,
                             types: summaryMatched
                         },
-                        rangeWarnings: rangeWarnings
+                        rangeWarnings: rangeWarnings,
+                        rowData: data
                     });
                 } catch (error) {
                     alert('判断出错：' + error.message);
@@ -544,6 +545,7 @@
         }
         
         function displayResult(result) {
+            const inputData = result.rowData || {};
             // 数据范围检查
             const rangeCard = document.getElementById('rangeResult');
             const rangeContent = document.getElementById('rangeContent');
@@ -628,7 +630,7 @@
                                 const exceeded = [];
                                 for (const col of cols) {
                                     const r = pr[col];
-                                    const v = parseFloat(data[col]);
+                                    const v = parseFloat(inputData[col]);
                                     if (isNaN(v)) continue;
                                     if (v < r.min || v > r.max) {
                                         exceeded.push(r.name);
