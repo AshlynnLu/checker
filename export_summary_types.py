@@ -333,10 +333,11 @@ def _load_base_table(path: str) -> List[Dict[str, Optional[float]]]:
                 rows_raw[r_idx][m.group(1)] = (val or "").strip()
 
     # 需要的列: B(主/客), D(澳门), F(马会) 用于 morph 匹配
-    # G(上水), I(水差), L(澳平), O(马主), P(马平), U(主差), V(平差), W(客差), X(澳平客差) 用于条件
+    # E(上水澳), G(上水马), I(水差), K(澳主), L(澳平), M(澳客),
+    # O(马主), P(马平), Q(马客), U(主差), V(平差), W(客差), X(澳平客差) 用于条件+范围
     # AB(亚果) 用于统计上/走/下
     data_rows: List[Dict[str, Any]] = []
-    num_cols = ["G", "I", "L", "O", "P", "U", "V", "W", "X"]
+    num_cols = ["E", "G", "I", "K", "L", "M", "O", "P", "Q", "U", "V", "W", "X"]
     for r_idx in sorted(rows_raw.keys()):
         if r_idx <= 1:
             continue  # 跳过表头
@@ -406,10 +407,20 @@ def _compute_column_ranges(
     return result
 
 
+_RANGE_COLS = ["E", "G", "I", "K", "L", "M", "O", "P", "Q", "U", "V", "W", "X"]
+
+_RANGE_COL_NAMES = {
+    "E": "澳上水", "G": "马上水", "I": "水差",
+    "K": "澳主", "L": "澳平", "M": "澳客",
+    "O": "马主", "P": "马平", "Q": "马客",
+    "U": "主差", "V": "平差", "W": "客差", "X": "澳平客差",
+}
+
+
 def _compute_ai_stats(
     types: List[Dict[str, Any]], base_rows: List[Dict[str, Any]]
 ) -> None:
-    """对每个规则，用基本表数据统计 AI 上/走/下，写入 type["ai_stats"]。"""
+    """对每个规则，用基本表数据统计 AI 上/走/下，并计算匹配行各列的 min/max 范围。"""
 
     # 按 morph 分桶加速
     morph_buckets: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
@@ -425,6 +436,7 @@ def _compute_ai_stats(
 
         shang = zou = xia = 0
         conds = t.get("conditions", {})
+        matched_rows: List[Dict[str, Any]] = []
 
         for row in candidates:
             ok = True
@@ -450,6 +462,7 @@ def _compute_ai_stats(
                     break
 
             if ok:
+                matched_rows.append(row)
                 r = row["result"]
                 if r == "上":
                     shang += 1
@@ -459,6 +472,40 @@ def _compute_ai_stats(
                     xia += 1
 
         t["ai_stats"] = {"shang": shang, "zou": zou, "xia": xia}
+
+        # 计算匹配行各列的 min/max 范围（全部匹配行）
+        cond_ranges: Dict[str, Dict[str, float]] = {}
+        for col in _RANGE_COLS:
+            vals = [r[col] for r in matched_rows if r.get(col) is not None]
+            if vals:
+                cond_ranges[col] = {
+                    "min": round(min(vals), 2),
+                    "max": round(max(vals), 2),
+                    "name": _RANGE_COL_NAMES.get(col, col),
+                }
+        t["condition_ranges"] = cond_ranges
+
+        # 只用符合预测结果的行计算范围（用于判断未知比赛是否超出）
+        pred = t.get("prediction", "")
+        pred_result = ""
+        if "上" in pred:
+            pred_result = "上"
+        elif "下" in pred:
+            pred_result = "下"
+        elif "走" in pred:
+            pred_result = "走"
+
+        pred_rows = [r for r in matched_rows if r["result"] == pred_result] if pred_result else matched_rows
+        pred_ranges: Dict[str, Dict[str, float]] = {}
+        for col in _RANGE_COLS:
+            vals = [r[col] for r in pred_rows if r.get(col) is not None]
+            if vals:
+                pred_ranges[col] = {
+                    "min": round(min(vals), 2),
+                    "max": round(max(vals), 2),
+                    "name": _RANGE_COL_NAMES.get(col, col),
+                }
+        t["pred_ranges"] = pred_ranges
 
 
 def build_summary_types(
