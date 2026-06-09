@@ -351,8 +351,8 @@ def _load_base_table(path: str) -> List[Dict[str, Optional[float]]]:
             continue  # 没有结果的行跳过
 
         try:
-            d_val = str(round(float(d_raw), 2))
-            f_val = str(round(float(f_raw), 2))
+            d_val = str(round(float(d_raw), 2)).rstrip("0").rstrip(".")
+            f_val = str(round(float(f_raw), 2)).rstrip("0").rstrip(".")
         except (ValueError, TypeError):
             d_val = d_raw
             f_val = f_raw
