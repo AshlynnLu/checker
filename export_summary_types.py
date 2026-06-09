@@ -370,6 +370,35 @@ def _load_base_table(path: str) -> List[Dict[str, Optional[float]]]:
     return data_rows
 
 
+def _compute_column_ranges(
+    base_rows: List[Dict[str, Any]],
+) -> Dict[str, Dict[str, Dict[str, float]]]:
+    """按 morph 分组统计每个数值列的 min/max。
+
+    返回: { "主|0.25|0.25": { "G": {"min":..,"max":..}, "I": {...}, ... }, ... }
+    """
+    num_cols = ["G", "I", "L", "O", "P", "U", "V", "W", "X"]
+    buckets: Dict[str, Dict[str, List[float]]] = defaultdict(lambda: defaultdict(list))
+
+    for row in base_rows:
+        key = f"{row['side']}|{row['D']}|{row['F']}"
+        for col in num_cols:
+            v = row.get(col)
+            if v is not None:
+                buckets[key][col].append(v)
+
+    result: Dict[str, Dict[str, Dict[str, float]]] = {}
+    for key, cols_data in buckets.items():
+        result[key] = {}
+        for col, vals in cols_data.items():
+            if vals:
+                result[key][col] = {
+                    "min": round(min(vals), 6),
+                    "max": round(max(vals), 6),
+                }
+    return result
+
+
 def _compute_ai_stats(
     types: List[Dict[str, Any]], base_rows: List[Dict[str, Any]]
 ) -> None:
@@ -503,6 +532,10 @@ def build_summary_types(
             diff_count += 1
     print(f"  人工与AI统计不一致: {diff_count}/{len(types)} 条")
 
+    # 按 morph 分组统计各列 min/max
+    col_ranges = _compute_column_ranges(base_rows)
+    print(f"  列范围统计分组数: {len(col_ranges)}")
+
     return {
         "meta": {
             "source_file": xlsx_path,
@@ -511,6 +544,7 @@ def build_summary_types(
             "base_table_rows": len(base_rows),
         },
         "types": types,
+        "column_ranges": col_ranges,
     }
 
 
