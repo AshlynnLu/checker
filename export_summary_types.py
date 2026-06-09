@@ -224,8 +224,8 @@ def _parse_conditions_for_col(text: str) -> List[Dict[str, Any]]:
     """将单元格中的条件文本解析为原子条件列表。
 
     支持两种形式：
-    1）用 “且” 连接的多个不等式：<3.36且>3.19
-    2）用 “~” 表示区间：0.01~0.03  等价于 >=0.01 且 <=0.03
+    1）用 "且" 连接的多个不等式：<3.36且>3.19
+    2）用 "~" 表示区间：0.01~0.03  等价于 >=0.01 且 <=0.03
     """
     s = _normalize_cond_text(text)
     if not s:
@@ -292,10 +292,143 @@ def _build_feature_text(cols: Dict[str, str]) -> str:
     return feat
 
 
+def _load_base_table(path: str) -> List[Dict[str, Optional[float]]]:
+    """Load base table rows with numeric columns and result (AB)."""
+    with zipfile.ZipFile(path, "r") as z:
+        ns = {"main": "http://schemas.openxmlformats.org/spreadsheetml/2006/main"}
+        with z.open("xl/sharedStrings.xml") as f:
+            ss_root = ET.parse(f).getroot()
+        strings: List[str] = []
+        for si in ss_root.findall(".//main:si", ns):
+            texts = si.findall(".//main:t", ns)
+            strings.append("".join(t.text or "" for t in texts) if texts else "")
+
+        sheet_xml = _find_sheet_xml_by_name(z, "基本表")
+        with z.open(sheet_xml) as f:
+            sheet_root = ET.parse(f).getroot()
+
+    rows_raw: Dict[int, Dict[str, str]] = defaultdict(dict)
+    for row in sheet_root.findall(".//main:sheetData/main:row", ns):
+        r_idx_attr = row.get("r")
+        try:
+            r_idx = int(r_idx_attr)
+        except (TypeError, ValueError):
+            continue
+        for c in row.findall("main:c", ns):
+            ref = c.get("r")
+            if not ref:
+                continue
+            v = c.find("main:v", ns)
+            t = c.get("t")
+            if v is not None and v.text is not None:
+                if t == "s":
+                    idx = int(v.text)
+                    val = strings[idx] if 0 <= idx < len(strings) else ""
+                else:
+                    val = v.text
+            else:
+                val = ""
+            m = re.match(r"([A-Z]+)\d+", ref)
+            if m:
+                rows_raw[r_idx][m.group(1)] = (val or "").strip()
+
+    # 需要的列: B(主/客), D(澳门), F(马会) 用于 morph 匹配
+    # G(上水), I(水差), L(澳平), O(马主), P(马平), U(主差), V(平差), W(客差), X(澳平客差) 用于条件
+    # AB(亚果) 用于统计上/走/下
+    data_rows: List[Dict[str, Any]] = []
+    num_cols = ["G", "I", "L", "O", "P", "U", "V", "W", "X"]
+    for r_idx in sorted(rows_raw.keys()):
+        if r_idx <= 1:
+            continue  # 跳过表头
+        row = rows_raw[r_idx]
+        b_val = row.get("B", "").strip()
+        if b_val not in ("主", "客"):
+            continue
+        d_val = row.get("D", "").strip()
+        f_val = row.get("F", "").strip()
+        ab_val = row.get("AB", "").strip()
+        if not ab_val:
+            continue  # 没有结果的行跳过
+
+        parsed: Dict[str, Any] = {
+            "side": b_val,
+            "D": d_val,
+            "F": f_val,
+            "result": ab_val,  # 上/走/下
+        }
+        for col in num_cols:
+            raw = row.get(col, "").strip()
+            if raw:
+                try:
+                    parsed[col] = float(raw)
+                except ValueError:
+                    parsed[col] = None
+            else:
+                parsed[col] = None
+        data_rows.append(parsed)
+
+    return data_rows
+
+
+def _compute_ai_stats(
+    types: List[Dict[str, Any]], base_rows: List[Dict[str, Any]]
+) -> None:
+    """对每个规则，用基本表数据统计 AI 上/走/下，写入 type["ai_stats"]。"""
+
+    # 按 morph 分桶加速
+    morph_buckets: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
+    for row in base_rows:
+        key = f"{row['side']}|{row['D']}|{row['F']}"
+        morph_buckets[key].append(row)
+
+    EPS = 1e-9
+    for t in types:
+        morph = t["morph"]
+        key = f"{morph[0]}|{morph[1]}|{morph[2]}"
+        candidates = morph_buckets.get(key, [])
+
+        shang = zou = xia = 0
+        conds = t.get("conditions", {})
+
+        for row in candidates:
+            ok = True
+            for col_name, cond_list in conds.items():
+                v = row.get(col_name)
+                if v is None:
+                    ok = False
+                    break
+                for c in cond_list:
+                    op = c["op"]
+                    val = c["value"]
+                    if op == ">=" and not (v >= val - EPS):
+                        ok = False; break
+                    elif op == "<=" and not (v <= val + EPS):
+                        ok = False; break
+                    elif op == ">" and not (v > val):
+                        ok = False; break
+                    elif op == "<" and not (v < val):
+                        ok = False; break
+                    elif op == "=" and not (abs(v - val) <= EPS):
+                        ok = False; break
+                if not ok:
+                    break
+
+            if ok:
+                r = row["result"]
+                if r == "上":
+                    shang += 1
+                elif r == "走":
+                    zou += 1
+                elif r == "下":
+                    xia += 1
+
+        t["ai_stats"] = {"shang": shang, "zou": zou, "xia": xia}
+
+
 def build_summary_types(
     xlsx_path: str = "docs/202605欧洲FB.xlsx",
 ) -> Dict[str, Any]:
-    """构建基于“汇总”表的手工类型库（只使用人工统计）。"""
+    """构建基于"汇总"表的手工类型库（只使用人工统计 + AI统计）。"""
     raw_rules = _load_summary_sheet(xlsx_path)
     types: List[Dict[str, Any]] = []
 
@@ -355,11 +488,27 @@ def build_summary_types(
         }
         types.append(t)
 
+    # AI统计：用基本表数据验证每条规则
+    print("正在从基本表加载数据进行AI统计...")
+    base_rows = _load_base_table(xlsx_path)
+    print(f"  基本表数据行: {len(base_rows)}")
+    _compute_ai_stats(types, base_rows)
+
+    # 统计差异
+    diff_count = 0
+    for t in types:
+        s = t["stats"]
+        ai = t["ai_stats"]
+        if s["shang"] != ai["shang"] or s["zou"] != ai["zou"] or s["xia"] != ai["xia"]:
+            diff_count += 1
+    print(f"  人工与AI统计不一致: {diff_count}/{len(types)} 条")
+
     return {
         "meta": {
             "source_file": xlsx_path,
             "sheet": "汇总",
             "total_types": len(types),
+            "base_table_rows": len(base_rows),
         },
         "types": types,
     }

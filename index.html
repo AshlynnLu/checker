@@ -346,6 +346,9 @@
                 <li>先按主/客 + 盘口组合（B/D/F）匹配到汇总分组，再按每行条件逐条比对</li>
                 <li>命中后展示：预测、上/走/下、标注、提示</li>
             </ul>
+            <div style="margin-top:10px;text-align:right;">
+                <a href="manage.html" style="color:#1976d2;font-weight:600;text-decoration:none;">规则管理 →</a>
+            </div>
         </div>
         
         <div class="loading-status" id="loadingStatus">正在加载 2026 汇总类型库...</div>
@@ -579,6 +582,13 @@
                             ${rec !== '无明显推荐' ? `<span class="${recClass}">${rec}</span>` : ''}<br>
                             <strong>预测：</strong>${t.prediction || '（无）'}<br>
                             <strong>统计：</strong>上${shang} 下${xia} 走${zou}<br>
+                            <strong>AI统计：</strong>${(() => {
+                                const ai = t.ai_stats || {};
+                                const aiS = ai.shang || 0, aiZ = ai.zou || 0, aiX = ai.xia || 0;
+                                const match = (aiS === shang && aiZ === zou && aiX === xia);
+                                const color = match ? '#4caf50' : '#e53935';
+                                return '<span style="color:' + color + '">上' + aiS + ' 下' + aiX + ' 走' + aiZ + (match ? ' ✓' : ' ✗') + '</span>';
+                            })()}<br>
                             ${mark ? `<strong>标注：</strong>${mark}<br>` : ''}
                             ${tip ? `<span style="color:#e53935;font-weight:600"><strong>提示：</strong>${tip}</span>` : ''}
                         </div>
