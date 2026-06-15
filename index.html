@@ -453,14 +453,22 @@
         }
 
         .scatter-charts-wrap {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 10px;
-            justify-content: center;
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 12px;
+        }
+        @media (max-width: 900px) {
+            .scatter-charts-wrap { grid-template-columns: repeat(3, 1fr); }
         }
 
         .scatter-chart-box {
             text-align: center;
+            cursor: pointer;
+        }
+        .scatter-chart-box canvas {
+            width: 100% !important;
+            height: auto !important;
+            aspect-ratio: 1;
         }
 
         .scatter-chart-box .chart-label {
@@ -469,6 +477,62 @@
             color: #333;
             margin-bottom: 4px;
         }
+
+        /* Scatter modal */
+        .scatter-modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.7);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+        .scatter-modal-overlay.show { display: flex; }
+        .scatter-modal {
+            position: relative;
+            background: #fff;
+            border-radius: 12px;
+            padding: 20px;
+            max-width: 90vw;
+            max-height: 90vh;
+            text-align: center;
+        }
+        .scatter-modal .modal-title {
+            font-size: 16px;
+            font-weight: 700;
+            margin-bottom: 10px;
+        }
+        .scatter-modal canvas {
+            max-width: 80vmin;
+            max-height: 80vmin;
+        }
+        .scatter-modal-close {
+            position: absolute;
+            top: 8px; right: 14px;
+            font-size: 24px;
+            cursor: pointer;
+            color: #999;
+            background: none; border: none;
+        }
+        .scatter-modal-close:hover { color: #333; }
+        .scatter-modal-arrow {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 36px;
+            cursor: pointer;
+            color: #667eea;
+            background: rgba(255,255,255,0.9);
+            border: none;
+            border-radius: 50%;
+            width: 48px; height: 48px;
+            display: flex; align-items: center; justify-content: center;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+        }
+        .scatter-modal-arrow:hover { background: #667eea; color: #fff; }
+        .scatter-modal-arrow.left { left: -60px; }
+        .scatter-modal-arrow.right { right: -60px; }
     </style>
 </head>
 <body>
@@ -615,6 +679,17 @@
                 <span class="scatter-legend-item"><span class="scatter-legend-dot" style="background:#2196f3;width:14px;height:14px;"></span> 未赛（当前输入）</span>
             </div>
             <div class="scatter-charts-wrap" id="scatterChartsWrap"></div>
+        </div>
+    </div>
+
+    <!-- Scatter modal -->
+    <div class="scatter-modal-overlay" id="scatterModal">
+        <div class="scatter-modal">
+            <button class="scatter-modal-close" onclick="closeScatterModal()">&times;</button>
+            <button class="scatter-modal-arrow left" onclick="scatterModalNav(-1)">&#8249;</button>
+            <button class="scatter-modal-arrow right" onclick="scatterModalNav(1)">&#8250;</button>
+            <div class="modal-title" id="scatterModalTitle"></div>
+            <canvas id="scatterModalCanvas" width="600" height="600"></canvas>
         </div>
     </div>
 
@@ -1032,90 +1107,170 @@
             drawScatterCharts(scatterGroupRows, scatterCurrentMatch.vals, false);
         }
 
+        let scatterModalIdx = 0;
+        let scatterDrawRows = null;
+        let scatterDrawMatch = null;
+
         function drawScatterCharts(rows, matchVals, isFiltered) {
+            scatterDrawRows = rows;
+            scatterDrawMatch = matchVals;
             const wrap = document.getElementById('scatterChartsWrap');
             wrap.innerHTML = '';
-
-            const W = 140, H = 300;
-            const padTop = 25, padBot = 15, padLeft = 38, padRight = 10;
 
             for (let ci = 0; ci < SCATTER_COLS.length; ci++) {
                 const col = SCATTER_COLS[ci];
                 const colLabel = SCATTER_COL_NAMES[col];
 
-                // Collect values
-                const values = rows.map(r => r[ci]);
-                const userVal = matchVals[col];
-                let allVals = values.concat([userVal]);
-                let vMin = Math.min.apply(null, allVals);
-                let vMax = Math.max.apply(null, allVals);
-                const pad = (vMax - vMin) * 0.1 || 0.1;
-                vMin -= pad; vMax += pad;
-
                 const box = document.createElement('div');
                 box.className = 'scatter-chart-box';
+                box.onclick = (function(idx) { return function() { openScatterModal(idx); }; })(ci);
                 const label = document.createElement('div');
                 label.className = 'chart-label';
                 label.textContent = col + ' ' + colLabel;
                 box.appendChild(label);
 
+                const S = 300;
                 const canvas = document.createElement('canvas');
-                canvas.width = W; canvas.height = H;
-                canvas.style.border = '1px solid #e0e0e0';
-                canvas.style.borderRadius = '6px';
-                canvas.style.background = '#fafafa';
+                canvas.width = S; canvas.height = S;
                 box.appendChild(canvas);
                 wrap.appendChild(box);
 
-                const ctx = canvas.getContext('2d');
-                const plotH = H - padTop - padBot;
-                const plotW = W - padLeft - padRight;
-
-                function valToY(v) {
-                    return padTop + plotH - ((v - vMin) / (vMax - vMin)) * plotH;
-                }
-
-                // Y-axis labels
-                ctx.fillStyle = '#999';
-                ctx.font = '10px sans-serif';
-                ctx.textAlign = 'right';
-                const yLabels = [vMin, (vMin + vMax) / 2, vMax];
-                for (const lv of yLabels) {
-                    const y = valToY(lv);
-                    ctx.fillText(lv.toFixed(2), padLeft - 3, y + 3);
-                    ctx.strokeStyle = '#e0e0e0';
-                    ctx.beginPath();
-                    ctx.moveTo(padLeft, y);
-                    ctx.lineTo(W - padRight, y);
-                    ctx.stroke();
-                }
-
-                // Draw data dots with jitter
-                const n = rows.length;
-                for (let i = 0; i < n; i++) {
-                    const v = rows[i][ci];
-                    const result = rows[i][7]; // result string
-                    const y = valToY(v);
-                    const x = padLeft + 10 + (plotW - 20) * ((i + 0.5) / Math.max(n, 1));
-                    ctx.beginPath();
-                    ctx.arc(x, y, 3, 0, Math.PI * 2);
-                    ctx.fillStyle = SCATTER_RESULT_COLORS[result] || '#999';
-                    ctx.fill();
-                }
-
-                // Draw user dot (blue, larger)
-                const uy = valToY(userVal);
-                const ux = padLeft + plotW / 2;
-                ctx.beginPath();
-                ctx.arc(ux, uy, 6, 0, Math.PI * 2);
-                ctx.fillStyle = '#2196f3';
-                ctx.fill();
-                ctx.strokeStyle = '#fff';
-                ctx.lineWidth = 2;
-                ctx.stroke();
-                ctx.lineWidth = 1;
+                renderScatterCanvas(canvas, ci, rows, matchVals, false);
             }
         }
+
+        function renderScatterCanvas(canvas, ci, rows, matchVals, isLarge) {
+            const col = SCATTER_COLS[ci];
+            const ctx = canvas.getContext('2d');
+            const W = canvas.width, H = canvas.height;
+            ctx.clearRect(0, 0, W, H);
+
+            const padTop = isLarge ? 30 : 22;
+            const padBot = isLarge ? 20 : 12;
+            const padLeft = isLarge ? 55 : 38;
+            const padRight = isLarge ? 15 : 8;
+
+            // Collect values
+            const values = rows.map(r => r[ci]);
+            const userVal = matchVals[col];
+            const allVals = values.concat([userVal]);
+            let vMin = Math.min.apply(null, allVals);
+            let vMax = Math.max.apply(null, allVals);
+            const pad = (vMax - vMin) * 0.1 || 0.1;
+            vMin -= pad; vMax += pad;
+
+            const plotH = H - padTop - padBot;
+            const plotW = W - padLeft - padRight;
+
+            function valToY(v) {
+                return padTop + plotH - ((v - vMin) / (vMax - vMin)) * plotH;
+            }
+
+            // Background
+            ctx.fillStyle = '#fafafa';
+            ctx.fillRect(0, 0, W, H);
+            ctx.strokeStyle = '#e0e0e0';
+            ctx.strokeRect(0, 0, W, H);
+
+            // Y-axis labels & grid
+            const fontSize = isLarge ? 13 : 10;
+            ctx.fillStyle = '#999';
+            ctx.font = fontSize + 'px sans-serif';
+            ctx.textAlign = 'right';
+            const nTicks = isLarge ? 6 : 3;
+            for (let i = 0; i <= nTicks; i++) {
+                const lv = vMin + (vMax - vMin) * i / nTicks;
+                const y = valToY(lv);
+                ctx.fillText(lv.toFixed(2), padLeft - 4, y + 4);
+                ctx.strokeStyle = '#eee';
+                ctx.beginPath();
+                ctx.moveTo(padLeft, y);
+                ctx.lineTo(W - padRight, y);
+                ctx.stroke();
+            }
+
+            // Sort rows: draw 上 first, then 下, then 走 last (so 走 visible on top)
+            const drawOrder = [
+                ...rows.map((r, i) => ({i, r})).filter(x => x.r[7] === '上'),
+                ...rows.map((r, i) => ({i, r})).filter(x => x.r[7] === '下'),
+                ...rows.map((r, i) => ({i, r})).filter(x => x.r[7] === '走'),
+            ];
+
+            const dotR = isLarge ? 5 : 3;
+            const n = rows.length;
+            for (const item of drawOrder) {
+                const v = item.r[ci];
+                const result = item.r[7];
+                const y = valToY(v);
+                // Spread dots horizontally using original index
+                const x = padLeft + 8 + (plotW - 16) * ((item.i + 0.5) / Math.max(n, 1));
+                ctx.beginPath();
+                ctx.arc(x, y, dotR, 0, Math.PI * 2);
+                ctx.fillStyle = SCATTER_RESULT_COLORS[result] || '#999';
+                ctx.fill();
+            }
+
+            // Draw user dot (blue, larger, on top)
+            const uy = valToY(userVal);
+            const ux = padLeft + plotW / 2;
+            const uR = isLarge ? 9 : 6;
+            ctx.beginPath();
+            ctx.arc(ux, uy, uR, 0, Math.PI * 2);
+            ctx.fillStyle = '#2196f3';
+            ctx.fill();
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = isLarge ? 3 : 2;
+            ctx.stroke();
+            ctx.lineWidth = 1;
+
+            // Label for user value
+            if (isLarge) {
+                ctx.fillStyle = '#2196f3';
+                ctx.font = 'bold 13px sans-serif';
+                ctx.textAlign = 'left';
+                ctx.fillText(userVal.toFixed(2), ux + uR + 4, uy + 4);
+            }
+        }
+
+        function openScatterModal(idx) {
+            if (!scatterDrawRows || !scatterDrawMatch) return;
+            scatterModalIdx = idx;
+            renderModalChart();
+            document.getElementById('scatterModal').classList.add('show');
+        }
+
+        function closeScatterModal() {
+            document.getElementById('scatterModal').classList.remove('show');
+        }
+
+        function scatterModalNav(dir) {
+            scatterModalIdx = (scatterModalIdx + dir + SCATTER_COLS.length) % SCATTER_COLS.length;
+            renderModalChart();
+        }
+
+        function renderModalChart() {
+            const ci = scatterModalIdx;
+            const col = SCATTER_COLS[ci];
+            const colLabel = SCATTER_COL_NAMES[col];
+            document.getElementById('scatterModalTitle').textContent = col + ' ' + colLabel;
+            const canvas = document.getElementById('scatterModalCanvas');
+            canvas.width = 600; canvas.height = 600;
+            renderScatterCanvas(canvas, ci, scatterDrawRows, scatterDrawMatch, true);
+        }
+
+        // Close modal on overlay click
+        document.addEventListener('DOMContentLoaded', function() {
+            document.getElementById('scatterModal').addEventListener('click', function(e) {
+                if (e.target === this) closeScatterModal();
+            });
+            document.addEventListener('keydown', function(e) {
+                const modal = document.getElementById('scatterModal');
+                if (!modal.classList.contains('show')) return;
+                if (e.key === 'Escape') closeScatterModal();
+                if (e.key === 'ArrowLeft') scatterModalNav(-1);
+                if (e.key === 'ArrowRight') scatterModalNav(1);
+            });
+        });
     </script>
 </body>
 </html>
