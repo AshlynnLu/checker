@@ -1338,7 +1338,7 @@
             ];
 
             ctx.lineWidth = 1;
-            ctx.globalAlpha = isFiltered ? 1.0 : 0.35;
+            ctx.globalAlpha = isFiltered ? 1.0 : 0.9;
             for (const row of drawOrder) {
                 const color = SCATTER_RESULT_COLORS[row[7]] || '#999';
                 ctx.strokeStyle = color;
