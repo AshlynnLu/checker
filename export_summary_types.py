@@ -602,6 +602,41 @@ def build_summary_types(
     }
 
 
+def _export_scatter_data(base_rows: List[Dict[str, Any]], out_path: str) -> None:
+    """导出散点图数据：按 morph 分组，只保留马会让球数<1.5 的行。
+
+    格式紧凑：每组为 { cols: [...], rows: [[v1,v2,...,result], ...] }
+    """
+    SCATTER_COLS = ["E", "G", "L", "P", "U", "W", "X"]
+    buckets: Dict[str, List[List[Any]]] = defaultdict(list)
+
+    for row in base_rows:
+        try:
+            f_val = float(row["F"])
+        except (ValueError, TypeError):
+            continue
+        if f_val >= 1.5:
+            continue
+
+        key = f"{row['side']}|{row['D']}|{row['F']}"
+        vals: List[Any] = []
+        for col in SCATTER_COLS:
+            v = row.get(col)
+            vals.append(v if v is not None else None)
+        vals.append(row.get("result", ""))
+        buckets[key].append(vals)
+
+    scatter = {
+        "cols": SCATTER_COLS,
+        "groups": buckets,
+    }
+    with open(out_path, "w", encoding="utf-8") as f:
+        json.dump(scatter, f, ensure_ascii=False)
+    total = sum(len(v) for v in buckets.values())
+    print(f"已导出散点图数据到: {out_path}")
+    print(f"  分组数: {len(buckets)}，总行数: {total}")
+
+
 def main() -> None:
     data = build_summary_types()
     os.makedirs("static", exist_ok=True)
@@ -610,6 +645,10 @@ def main() -> None:
         json.dump(data, f, ensure_ascii=False, indent=2)
     print(f"已导出汇总类型库到: {out_path}")
     print(f"  类型总数: {data['meta']['total_types']}")
+
+    # 导出散点图数据
+    base_rows = _load_base_table(data["meta"]["source_file"])
+    _export_scatter_data(base_rows, os.path.join("static", "scatter_data.json"))
 
 
 if __name__ == "__main__":

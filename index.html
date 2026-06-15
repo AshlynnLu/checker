@@ -333,6 +333,142 @@
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
+
+        /* Scatter plot section */
+        .scatter-section {
+            margin-top: 30px;
+        }
+
+        .scatter-title {
+            font-size: 20px;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 15px;
+            padding-bottom: 8px;
+            border-bottom: 2px solid #667eea;
+        }
+
+        .scatter-input-area {
+            margin-bottom: 20px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border: 2px dashed #667eea;
+        }
+
+        .scatter-input-area label {
+            display: block;
+            font-size: 14px;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        .scatter-input-area textarea {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 6px;
+            font-size: 14px;
+            font-family: 'Courier New', monospace;
+            resize: vertical;
+            min-height: 60px;
+            transition: all 0.3s;
+        }
+
+        .scatter-input-area textarea:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .scatter-btn-row {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .scatter-btn-row button {
+            padding: 10px 24px;
+            font-size: 14px;
+        }
+
+        .btn-scatter-add {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-scatter-add:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-scatter-filter {
+            background: #ff9800;
+            color: white;
+        }
+
+        .btn-scatter-filter:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(255, 152, 0, 0.4);
+        }
+
+        .btn-scatter-reset {
+            background: #e0e0e0;
+            color: #333;
+        }
+
+        .btn-scatter-reset:hover {
+            background: #d0d0d0;
+        }
+
+        .scatter-morph-info {
+            margin-left: 15px;
+            font-size: 13px;
+            color: #666;
+        }
+
+        .scatter-legend {
+            display: flex;
+            gap: 18px;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+            font-size: 13px;
+            align-items: center;
+        }
+
+        .scatter-legend-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .scatter-legend-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+
+        .scatter-charts-wrap {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            justify-content: center;
+        }
+
+        .scatter-chart-box {
+            text-align: center;
+        }
+
+        .scatter-chart-box .chart-label {
+            font-size: 12px;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 4px;
+        }
     </style>
 </head>
 <body>
@@ -458,8 +594,30 @@
                 <div class="rules-list" id="summaryRules"></div>
             </div>
         </div>
+
+        <!-- Scatter plot section -->
+        <div class="scatter-section" id="scatterSection">
+            <div class="scatter-title">散点图分析</div>
+            <div class="scatter-input-area">
+                <label for="scatterPaste">添加比赛（粘贴一行数据，19列：A B C D E F G H I K L M O P Q U V W X）：</label>
+                <textarea id="scatterPaste" placeholder="例如：英超	客	4	0.25	0.96	0.25	0.91	0	0.02	2.4	3.2	2.7	2.39	2.92	2.74	-0.17	-0.20	0.34	0.34"></textarea>
+                <div class="scatter-btn-row">
+                    <button class="btn-scatter-add" onclick="scatterAdd()">添加</button>
+                    <button class="btn-scatter-filter" onclick="scatterFilter()" id="btnScatterFilter" style="display:none;">筛选</button>
+                    <button class="btn-scatter-reset" onclick="scatterReset()" id="btnScatterReset" style="display:none;">重置</button>
+                    <span class="scatter-morph-info" id="scatterMorphInfo"></span>
+                </div>
+            </div>
+            <div class="scatter-legend" id="scatterLegend" style="display:none;">
+                <span class="scatter-legend-item"><span class="scatter-legend-dot" style="background:#e53935;"></span> 上</span>
+                <span class="scatter-legend-item"><span class="scatter-legend-dot" style="background:#4caf50;"></span> 下</span>
+                <span class="scatter-legend-item"><span class="scatter-legend-dot" style="background:#ff9800;"></span> 走</span>
+                <span class="scatter-legend-item"><span class="scatter-legend-dot" style="background:#2196f3;width:14px;height:14px;"></span> 未赛（当前输入）</span>
+            </div>
+            <div class="scatter-charts-wrap" id="scatterChartsWrap"></div>
+        </div>
     </div>
-    
+
         <script>
         let summaryTypesData = null;
         
@@ -772,6 +930,192 @@
         
         // 页面加载时加载汇总类型库
         loadSummaryTypes();
+
+        // ========== Scatter Plot Section ==========
+        let scatterDataCache = null;
+        let scatterCurrentMatch = null;   // {B, D, F, vals:{E,G,L,P,U,W,X}}
+        let scatterGroupRows = null;      // array of rows from matched group
+        let scatterFiltered = false;
+
+        const SCATTER_COLS = ['E','G','L','P','U','W','X'];
+        const SCATTER_COL_NAMES = {E:"澳上水", G:"马上水", L:"澳平", P:"马平", U:"主差", W:"客差", X:"澳平客差"};
+        const SCATTER_RESULT_COLORS = {"上":"#e53935", "下":"#4caf50", "走":"#ff9800"};
+
+        async function loadScatterData() {
+            if (scatterDataCache) return scatterDataCache;
+            const resp = await fetch('static/scatter_data.json');
+            if (!resp.ok) throw new Error('无法加载 scatter_data.json');
+            scatterDataCache = await resp.json();
+            return scatterDataCache;
+        }
+
+        function parseScatterRow(text) {
+            let parts = text.trim().split(/\t/);
+            if (parts.length === 1) parts = text.trim().split(/\s+/);
+            parts = parts.map(p => p.trim()).filter(p => p.length > 0);
+            if (parts.length < 19) {
+                throw new Error('数据列数不足：期望19列，实际' + parts.length + '列');
+            }
+            const columns = ['A','B','C','D','E','F','G','H','I','K','L','M','O','P','Q','U','V','W','X'];
+            const data = {};
+            for (let i = 0; i < 19; i++) {
+                data[columns[i]] = parts[i];
+            }
+            return data;
+        }
+
+        async function scatterAdd() {
+            const text = document.getElementById('scatterPaste').value.trim();
+            if (!text) { alert('请先粘贴比赛数据'); return; }
+
+            let data;
+            try { data = parseScatterRow(text); } catch(e) { alert(e.message); return; }
+
+            const B = data.B;
+            const D = data.D;
+            const F = data.F;
+
+            if (B !== '主' && B !== '客') { alert('B列必须是"主"或"客"'); return; }
+            if (parseFloat(F) >= 1.5) { alert('马会让球数≥1.5，不予显示'); return; }
+
+            const vals = {};
+            for (const c of SCATTER_COLS) {
+                vals[c] = parseFloat(data[c]);
+                if (isNaN(vals[c])) { alert('列 ' + c + ' 数据无效'); return; }
+            }
+
+            scatterCurrentMatch = { B, D, F, vals };
+
+            let sd;
+            try { sd = await loadScatterData(); } catch(e) { alert(e.message); return; }
+
+            const morphKey = B + '|' + D + '|' + F;
+            const group = sd.groups[morphKey];
+            if (!group || group.length === 0) {
+                alert('未找到形态分组：' + morphKey);
+                return;
+            }
+
+            scatterGroupRows = group;
+            scatterFiltered = false;
+
+            document.getElementById('scatterMorphInfo').textContent = '形态：' + morphKey + '（共' + group.length + '场历史比赛）';
+            document.getElementById('scatterLegend').style.display = 'flex';
+            document.getElementById('btnScatterFilter').style.display = '';
+            document.getElementById('btnScatterReset').style.display = '';
+
+            drawScatterCharts(scatterGroupRows, scatterCurrentMatch.vals, false);
+        }
+
+        function scatterFilter() {
+            if (!scatterGroupRows || !scatterCurrentMatch) return;
+            const mv = scatterCurrentMatch.vals;
+            const filtered = scatterGroupRows.filter(function(row) {
+                const colIdx = {L:2, U:4, X:6};
+                return Math.abs(row[colIdx.L] - mv.L) <= 0.1 &&
+                       Math.abs(row[colIdx.U] - mv.U) <= 0.05 &&
+                       Math.abs(row[colIdx.X] - mv.X) <= 0.1;
+            });
+            scatterFiltered = true;
+            document.getElementById('scatterMorphInfo').textContent =
+                '形态：' + scatterCurrentMatch.B + '|' + scatterCurrentMatch.D + '|' + scatterCurrentMatch.F +
+                '（筛选后' + filtered.length + '/' + scatterGroupRows.length + '场）';
+            drawScatterCharts(filtered, scatterCurrentMatch.vals, true);
+        }
+
+        function scatterReset() {
+            if (!scatterGroupRows || !scatterCurrentMatch) return;
+            scatterFiltered = false;
+            document.getElementById('scatterMorphInfo').textContent =
+                '形态：' + scatterCurrentMatch.B + '|' + scatterCurrentMatch.D + '|' + scatterCurrentMatch.F +
+                '（共' + scatterGroupRows.length + '场历史比赛）';
+            drawScatterCharts(scatterGroupRows, scatterCurrentMatch.vals, false);
+        }
+
+        function drawScatterCharts(rows, matchVals, isFiltered) {
+            const wrap = document.getElementById('scatterChartsWrap');
+            wrap.innerHTML = '';
+
+            const W = 140, H = 300;
+            const padTop = 25, padBot = 15, padLeft = 38, padRight = 10;
+
+            for (let ci = 0; ci < SCATTER_COLS.length; ci++) {
+                const col = SCATTER_COLS[ci];
+                const colLabel = SCATTER_COL_NAMES[col];
+
+                // Collect values
+                const values = rows.map(r => r[ci]);
+                const userVal = matchVals[col];
+                let allVals = values.concat([userVal]);
+                let vMin = Math.min.apply(null, allVals);
+                let vMax = Math.max.apply(null, allVals);
+                const pad = (vMax - vMin) * 0.1 || 0.1;
+                vMin -= pad; vMax += pad;
+
+                const box = document.createElement('div');
+                box.className = 'scatter-chart-box';
+                const label = document.createElement('div');
+                label.className = 'chart-label';
+                label.textContent = col + ' ' + colLabel;
+                box.appendChild(label);
+
+                const canvas = document.createElement('canvas');
+                canvas.width = W; canvas.height = H;
+                canvas.style.border = '1px solid #e0e0e0';
+                canvas.style.borderRadius = '6px';
+                canvas.style.background = '#fafafa';
+                box.appendChild(canvas);
+                wrap.appendChild(box);
+
+                const ctx = canvas.getContext('2d');
+                const plotH = H - padTop - padBot;
+                const plotW = W - padLeft - padRight;
+
+                function valToY(v) {
+                    return padTop + plotH - ((v - vMin) / (vMax - vMin)) * plotH;
+                }
+
+                // Y-axis labels
+                ctx.fillStyle = '#999';
+                ctx.font = '10px sans-serif';
+                ctx.textAlign = 'right';
+                const yLabels = [vMin, (vMin + vMax) / 2, vMax];
+                for (const lv of yLabels) {
+                    const y = valToY(lv);
+                    ctx.fillText(lv.toFixed(2), padLeft - 3, y + 3);
+                    ctx.strokeStyle = '#e0e0e0';
+                    ctx.beginPath();
+                    ctx.moveTo(padLeft, y);
+                    ctx.lineTo(W - padRight, y);
+                    ctx.stroke();
+                }
+
+                // Draw data dots with jitter
+                const n = rows.length;
+                for (let i = 0; i < n; i++) {
+                    const v = rows[i][ci];
+                    const result = rows[i][7]; // result string
+                    const y = valToY(v);
+                    const x = padLeft + 10 + (plotW - 20) * ((i + 0.5) / Math.max(n, 1));
+                    ctx.beginPath();
+                    ctx.arc(x, y, 3, 0, Math.PI * 2);
+                    ctx.fillStyle = SCATTER_RESULT_COLORS[result] || '#999';
+                    ctx.fill();
+                }
+
+                // Draw user dot (blue, larger)
+                const uy = valToY(userVal);
+                const ux = padLeft + plotW / 2;
+                ctx.beginPath();
+                ctx.arc(ux, uy, 6, 0, Math.PI * 2);
+                ctx.fillStyle = '#2196f3';
+                ctx.fill();
+                ctx.strokeStyle = '#fff';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+                ctx.lineWidth = 1;
+            }
+        }
     </script>
 </body>
 </html>
