@@ -1272,10 +1272,10 @@
 
             const cols = SCATTER_COLS;
             const nCols = cols.length;
-            // L=index 2, P=index 3 in row array
-            const userL = matchVals.L, userP = matchVals.P;
+            // L=index 2, P=index 3, X=index 6 in row array
+            const userL = matchVals.L, userP = matchVals.P, userX = matchVals.X;
             rows = rows.filter(function(r) {
-                return Math.abs(r[2] - userL) <= 0.2 && Math.abs(r[3] - userP) <= 0.2;
+                return Math.abs(r[2] - userL) <= 0.2 && Math.abs(r[3] - userP) <= 0.2 && Math.abs(r[6] - userX) <= 0.2;
             });
 
             // Compute per-column min/max for normalization
