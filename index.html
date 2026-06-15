@@ -1142,7 +1142,7 @@
                 renderScatterCanvas(canvas, ci, rows, matchVals, false);
             }
 
-            renderLineChart(rows, matchVals);
+            renderLineChart(rows, matchVals, isFiltered);
         }
 
         function renderScatterCanvas(canvas, ci, rows, matchVals, isLarge) {
@@ -1264,7 +1264,7 @@
             renderScatterCanvas(canvas, ci, scatterDrawRows, scatterDrawMatch, true);
         }
 
-        function renderLineChart(rows, matchVals) {
+        function renderLineChart(rows, matchVals, isFiltered) {
             const wrap = document.getElementById('scatterLineChartWrap');
             const canvas = document.getElementById('scatterLineCanvas');
             if (!rows || rows.length === 0) { wrap.style.display = 'none'; return; }
@@ -1272,6 +1272,11 @@
 
             const cols = SCATTER_COLS;
             const nCols = cols.length;
+            // L=index 2, P=index 3 in row array
+            const userL = matchVals.L, userP = matchVals.P;
+            rows = rows.filter(function(r) {
+                return Math.abs(r[2] - userL) <= 0.2 && Math.abs(r[3] - userP) <= 0.2;
+            });
 
             // Compute per-column min/max for normalization
             const mins = [], maxs = [];
@@ -1333,7 +1338,7 @@
             ];
 
             ctx.lineWidth = 1;
-            ctx.globalAlpha = 0.15;
+            ctx.globalAlpha = isFiltered ? 1.0 : 0.35;
             for (const row of drawOrder) {
                 const color = SCATTER_RESULT_COLORS[row[7]] || '#999';
                 ctx.strokeStyle = color;
