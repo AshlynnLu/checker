@@ -768,6 +768,10 @@
                 <div style="font-weight:700; font-size:15px; margin-bottom:10px; color:#333;">📈 正态分布分析（全部数据）</div>
                 <div class="normal-dist-grid" id="normalDistGrid"></div>
             </div>
+            <div id="normalDistCoarseWrap" style="display:none; margin-top:18px;">
+                <div id="normalDistCoarseTitle" style="font-weight:700; font-size:15px; margin-bottom:10px; color:#333;">📈 正态分布分析（初筛数据）</div>
+                <div class="normal-dist-grid" id="normalDistCoarseGrid"></div>
+            </div>
         </div>
     </div>
 
@@ -1171,6 +1175,14 @@
 
             drawScatterCharts(scatterGroupRows, scatterCurrentMatch.vals, false);
             renderNormalDistCharts(scatterGroupRows, scatterCurrentMatch.vals);
+            // 初筛正态分布
+            var mv = scatterCurrentMatch.vals;
+            var coarseRows = scatterGroupRows.filter(function(r) {
+                return Math.abs(r[2] - mv.L) <= 0.2 && Math.abs(r[4] - mv.U) <= 0.1 && Math.abs(r[6] - mv.X) <= 0.2;
+            });
+            var coarseTitle = document.getElementById('normalDistCoarseTitle');
+            if (coarseTitle) coarseTitle.textContent = '📈 正态分布分析（初筛 ' + coarseRows.length + '场）';
+            renderNormalDistCharts(coarseRows, scatterCurrentMatch.vals, 'normalDistCoarseGrid', 'normalDistCoarseWrap');
             renderTrendAnalysis(scatterGroupRows, scatterCurrentMatch.vals);
         }
 
@@ -1486,9 +1498,11 @@
             return Math.exp(-0.5 * z * z) / (sigma * Math.sqrt(2 * Math.PI));
         }
 
-        function renderNormalDistCharts(allRows, matchVals) {
-            var wrap = document.getElementById('normalDistWrap');
-            var grid = document.getElementById('normalDistGrid');
+        function renderNormalDistCharts(allRows, matchVals, gridId, wrapId) {
+            gridId = gridId || 'normalDistGrid';
+            wrapId = wrapId || 'normalDistWrap';
+            var wrap = document.getElementById(wrapId);
+            var grid = document.getElementById(gridId);
             if (!allRows || allRows.length < 10) { wrap.style.display = 'none'; return; }
             wrap.style.display = '';
             grid.innerHTML = '';
@@ -1601,24 +1615,12 @@
                     ctx.stroke();
                 }
 
-                // Draw curves (filled + stroke)
+                // Draw curves (stroke only)
                 for (var ri = 0; ri < resultCfg.length; ri++) {
                     if (!allCurves[ri]) continue;
                     var pts = allCurves[ri].points;
                     var cfg = resultCfg[ri];
 
-                    // Fill
-                    ctx.beginPath();
-                    ctx.moveTo(valToX(pts[0].x), padTop + plotH);
-                    for (var s = 0; s < pts.length; s++) {
-                        ctx.lineTo(valToX(pts[s].x), pdfToY(pts[s].y));
-                    }
-                    ctx.lineTo(valToX(pts[pts.length - 1].x), padTop + plotH);
-                    ctx.closePath();
-                    ctx.fillStyle = cfg.fill;
-                    ctx.fill();
-
-                    // Stroke
                     ctx.beginPath();
                     for (var s = 0; s < pts.length; s++) {
                         var px = valToX(pts[s].x);
