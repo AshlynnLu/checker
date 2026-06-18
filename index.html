@@ -1174,15 +1174,13 @@
             document.getElementById('btnScatterReset').style.display = '';
 
             drawScatterCharts(scatterGroupRows, scatterCurrentMatch.vals, false);
-            renderNormalDistCharts(scatterGroupRows, scatterCurrentMatch.vals);
-            // 初筛正态分布
+            // 正态分布：全部 + 初筛叠加
             var mv = scatterCurrentMatch.vals;
-            var coarseRows = scatterGroupRows.filter(function(r) {
+            var coarseForNorm = scatterGroupRows.filter(function(r) {
                 return Math.abs(r[2] - mv.L) <= 0.2 && Math.abs(r[4] - mv.U) <= 0.1 && Math.abs(r[6] - mv.X) <= 0.2;
             });
-            var coarseTitle = document.getElementById('normalDistCoarseTitle');
-            if (coarseTitle) coarseTitle.textContent = '📈 正态分布分析（初筛 ' + coarseRows.length + '场）';
-            renderNormalDistCharts(coarseRows, scatterCurrentMatch.vals, 'normalDistCoarseGrid', 'normalDistCoarseWrap');
+            renderNormalDistCharts(scatterGroupRows, scatterCurrentMatch.vals, coarseForNorm);
+            document.getElementById('normalDistCoarseWrap').style.display = 'none';
             renderTrendAnalysis(scatterGroupRows, scatterCurrentMatch.vals);
         }
 
@@ -1498,28 +1496,56 @@
             return Math.exp(-0.5 * z * z) / (sigma * Math.sqrt(2 * Math.PI));
         }
 
-        function renderNormalDistCharts(allRows, matchVals, gridId, wrapId) {
-            gridId = gridId || 'normalDistGrid';
-            wrapId = wrapId || 'normalDistWrap';
-            var wrap = document.getElementById(wrapId);
-            var grid = document.getElementById(gridId);
+        function computeNormalCurves(rows, ci, xMin, xMax, nSteps) {
+            var byRes = { '上': [], '下': [], '走': [] };
+            for (var i = 0; i < rows.length; i++) {
+                var res = rows[i][7];
+                if (byRes[res]) byRes[res].push(rows[i]);
+            }
+            var curves = [];
+            var maxPDF = 0;
+            var keys = ['上', '下', '走'];
+            for (var ri = 0; ri < keys.length; ri++) {
+                var rRows = byRes[keys[ri]];
+                if (rRows.length < 3) { curves.push(null); continue; }
+                var vals = [];
+                for (var j = 0; j < rRows.length; j++) vals.push(rRows[j][ci]);
+                var mean = 0;
+                for (var j = 0; j < vals.length; j++) mean += vals[j];
+                mean /= vals.length;
+                var variance = 0;
+                for (var j = 0; j < vals.length; j++) variance += (vals[j] - mean) * (vals[j] - mean);
+                variance /= vals.length;
+                var std = Math.sqrt(variance);
+                var points = [];
+                for (var s = 0; s <= nSteps; s++) {
+                    var xv = xMin + (xMax - xMin) * s / nSteps;
+                    var pdf = gaussianPDF(xv, mean, std);
+                    points.push({ x: xv, y: pdf });
+                    if (pdf > maxPDF) maxPDF = pdf;
+                }
+                curves.push({ points: points, mean: mean, std: std, count: rRows.length });
+            }
+            return { curves: curves, maxPDF: maxPDF };
+        }
+
+        function renderNormalDistCharts(allRows, matchVals, coarseRows) {
+            var wrap = document.getElementById('normalDistWrap');
+            var grid = document.getElementById('normalDistGrid');
             if (!allRows || allRows.length < 10) { wrap.style.display = 'none'; return; }
             wrap.style.display = '';
             grid.innerHTML = '';
 
             var cols = SCATTER_COLS;
-
-            // Split rows by result
-            var byResult = { '上': [], '下': [], '走': [] };
-            for (var i = 0; i < allRows.length; i++) {
-                var res = allRows[i][7];
-                if (byResult[res]) byResult[res].push(allRows[i]);
-            }
-
             var resultCfg = [
-                { key: '上', color: 'rgba(229,57,53,0.8)', fill: 'rgba(229,57,53,0.12)' },
-                { key: '下', color: 'rgba(76,175,80,0.8)', fill: 'rgba(76,175,80,0.12)' },
-                { key: '走', color: 'rgba(255,152,0,0.8)', fill: 'rgba(255,152,0,0.12)' }
+                { key: '上', color: 'rgba(229,57,53,0.9)' },
+                { key: '下', color: 'rgba(76,175,80,0.9)' },
+                { key: '走', color: 'rgba(255,152,0,0.9)' }
+            ];
+            var coarseCfg = [
+                { key: '上', color: 'rgba(229,57,53,0.5)' },
+                { key: '下', color: 'rgba(76,175,80,0.5)' },
+                { key: '走', color: 'rgba(255,152,0,0.5)' }
             ];
 
             for (var ci = 0; ci < cols.length; ci++) {
@@ -1527,6 +1553,7 @@
                 var range = LINE_FIXED_RANGES[col];
                 var xMin = range[0], xMax = range[1];
                 var userVal = matchVals[col];
+                var nSteps = 200;
 
                 var box = document.createElement('div');
                 box.className = 'normal-dist-box';
@@ -1546,7 +1573,6 @@
                 var padTop = 20, padBot = 36, padLeft = 10, padRight = 10;
                 var plotW = W - padLeft - padRight;
                 var plotH = H - padTop - padBot;
-                var nSteps = 200;
 
                 // Background
                 ctx.fillStyle = '#fafafa';
@@ -1554,42 +1580,26 @@
                 ctx.strokeStyle = '#e0e0e0';
                 ctx.strokeRect(0, 0, W, H);
 
+                // Compute full data curves
+                var fullData = computeNormalCurves(allRows, ci, xMin, xMax, nSteps);
+                var globalMaxPDF = fullData.maxPDF;
+                if (globalMaxPDF < 0.001) globalMaxPDF = 1;
+
+                // Compute coarse curves
+                var coarseData = null;
+                if (coarseRows && coarseRows.length >= 10) {
+                    coarseData = computeNormalCurves(coarseRows, ci, xMin, xMax, nSteps);
+                }
+
                 function valToX(v) {
                     return padLeft + (v - xMin) / (xMax - xMin) * plotW;
                 }
-
-                // Compute all curves first to find max PDF for Y scaling
-                var allCurves = [];
-                var globalMaxPDF = 0;
-                for (var ri = 0; ri < resultCfg.length; ri++) {
-                    var rk = resultCfg[ri].key;
-                    var rRows = byResult[rk];
-                    if (rRows.length < 3) { allCurves.push(null); continue; }
-
-                    var vals = [];
-                    for (var j = 0; j < rRows.length; j++) vals.push(rRows[j][ci]);
-                    var mean = 0;
-                    for (var j = 0; j < vals.length; j++) mean += vals[j];
-                    mean /= vals.length;
-                    var variance = 0;
-                    for (var j = 0; j < vals.length; j++) variance += (vals[j] - mean) * (vals[j] - mean);
-                    variance /= vals.length;
-                    var std = Math.sqrt(variance);
-
-                    var points = [];
-                    for (var s = 0; s <= nSteps; s++) {
-                        var xv = xMin + (xMax - xMin) * s / nSteps;
-                        var pdf = gaussianPDF(xv, mean, std);
-                        points.push({ x: xv, y: pdf });
-                        if (pdf > globalMaxPDF) globalMaxPDF = pdf;
-                    }
-                    allCurves.push({ points: points, mean: mean, std: std, count: rRows.length });
-                }
-
-                if (globalMaxPDF < 0.001) globalMaxPDF = 1;
-
+                // Y scale: full curves use full height, coarse curves use half height
                 function pdfToY(pdf) {
                     return padTop + plotH - (pdf / globalMaxPDF) * plotH;
+                }
+                function pdfToYHalf(pdf) {
+                    return padTop + plotH - (pdf / globalMaxPDF) * plotH * 0.5;
                 }
 
                 // X axis line
@@ -1615,22 +1625,40 @@
                     ctx.stroke();
                 }
 
-                // Draw curves (stroke only)
+                // Draw full data curves (solid, full height)
                 for (var ri = 0; ri < resultCfg.length; ri++) {
-                    if (!allCurves[ri]) continue;
-                    var pts = allCurves[ri].points;
-                    var cfg = resultCfg[ri];
-
+                    if (!fullData.curves[ri]) continue;
+                    var pts = fullData.curves[ri].points;
                     ctx.beginPath();
                     for (var s = 0; s < pts.length; s++) {
                         var px = valToX(pts[s].x);
                         var py = pdfToY(pts[s].y);
                         if (s === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
                     }
-                    ctx.strokeStyle = cfg.color;
+                    ctx.strokeStyle = resultCfg[ri].color;
                     ctx.lineWidth = 2;
                     ctx.stroke();
                     ctx.lineWidth = 1;
+                }
+
+                // Draw coarse curves (dashed, half height)
+                if (coarseData) {
+                    ctx.setLineDash([4, 3]);
+                    for (var ri = 0; ri < coarseCfg.length; ri++) {
+                        if (!coarseData.curves[ri]) continue;
+                        var pts = coarseData.curves[ri].points;
+                        ctx.beginPath();
+                        for (var s = 0; s < pts.length; s++) {
+                            var px = valToX(pts[s].x);
+                            var py = pdfToYHalf(pts[s].y);
+                            if (s === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+                        }
+                        ctx.strokeStyle = coarseCfg[ri].color;
+                        ctx.lineWidth = 2;
+                        ctx.stroke();
+                        ctx.lineWidth = 1;
+                    }
+                    ctx.setLineDash([]);
                 }
 
                 // User value: black vertical line
@@ -1651,15 +1679,24 @@
                 ctx.textAlign = 'center';
                 ctx.fillText(userVal.toFixed(2), ux, padTop - 5);
 
-                // Legend: count per result at top-right
+                // Legend
                 ctx.font = '10px sans-serif';
                 ctx.textAlign = 'right';
                 var ly = padTop + 12;
                 for (var ri = 0; ri < resultCfg.length; ri++) {
-                    if (!allCurves[ri]) continue;
+                    if (!fullData.curves[ri]) continue;
+                    var txt = resultCfg[ri].key + ' ' + fullData.curves[ri].count;
+                    if (coarseData && coarseData.curves[ri]) txt += '/' + coarseData.curves[ri].count;
+                    txt += '场';
                     ctx.fillStyle = resultCfg[ri].color;
-                    ctx.fillText(resultCfg[ri].key + ' ' + allCurves[ri].count + '场', W - padRight - 4, ly);
+                    ctx.fillText(txt, W - padRight - 4, ly);
                     ly += 14;
+                }
+                // Legend label for line styles
+                if (coarseData) {
+                    ctx.fillStyle = '#999';
+                    ctx.font = '9px sans-serif';
+                    ctx.fillText('实线=全部 虚线=初筛', W - padRight - 4, ly);
                 }
             }
         }
