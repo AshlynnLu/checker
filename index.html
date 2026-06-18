@@ -533,6 +533,60 @@
         .scatter-modal-arrow:hover { background: #667eea; color: #fff; }
         .scatter-modal-arrow.left { left: -60px; }
         .scatter-modal-arrow.right { right: -60px; }
+
+        /* 趋势分析面板 */
+        .trend-panel {
+            background: #fff;
+            border-radius: 10px;
+            padding: 16px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+        .trend-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 14px;
+            font-size: 14px;
+        }
+        .trend-table th {
+            background: #f5f6fa;
+            padding: 8px 10px;
+            text-align: center;
+            font-weight: 600;
+            border-bottom: 2px solid #e0e0e0;
+        }
+        .trend-table td {
+            padding: 8px 10px;
+            text-align: center;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        .trend-table .level-label { font-weight: 600; text-align: left; }
+        .trend-bar-wrap {
+            display: flex;
+            height: 22px;
+            border-radius: 4px;
+            overflow: hidden;
+            min-width: 120px;
+        }
+        .trend-bar-up { background: #e53935; }
+        .trend-bar-dn { background: #4caf50; }
+        .trend-bar-zou { background: #ff9800; }
+        .trend-drift {
+            font-weight: 700;
+            font-size: 13px;
+        }
+        .trend-drift.up { color: #e53935; }
+        .trend-drift.dn { color: #4caf50; }
+        .trend-drift.flat { color: #999; }
+        .trend-conclusion {
+            margin-top: 12px;
+            padding: 12px 16px;
+            border-radius: 8px;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+        .trend-conclusion.strong { background: #e8f5e9; border-left: 4px solid #4caf50; }
+        .trend-conclusion.moderate { background: #fff8e1; border-left: 4px solid #ff9800; }
+        .trend-conclusion.weak { background: #fce4ec; border-left: 4px solid #e53935; }
     </style>
 </head>
 <body>
@@ -681,6 +735,11 @@
             <div id="scatterLineChartWrap" style="display:none; margin-top:18px;">
                 <div id="lineChartTitle" style="font-weight:700; font-size:14px; margin-bottom:6px; color:#333;">折线总览</div>
                 <canvas id="scatterLineCanvas" style="width:100%; border:1px solid #e0e0e0; border-radius:6px; background:#fafafa;"></canvas>
+            </div>
+            <!-- 趋势分析面板 -->
+            <div id="trendAnalysisWrap" style="display:none; margin-top:18px;">
+                <div style="font-weight:700; font-size:15px; margin-bottom:10px; color:#333;">📊 趋势分析</div>
+                <div class="trend-panel" id="trendPanel"></div>
             </div>
         </div>
     </div>
@@ -1084,6 +1143,7 @@
             document.getElementById('btnScatterReset').style.display = '';
 
             drawScatterCharts(scatterGroupRows, scatterCurrentMatch.vals, false);
+            renderTrendAnalysis(scatterGroupRows, scatterCurrentMatch.vals);
         }
 
         // 细筛条件: L±0.1, U±0.05, X±0.1; 初筛条件: 各放大一倍 L±0.2, U±0.1, X±0.2
@@ -1390,6 +1450,155 @@
             }
             ctx.lineWidth = 1;
             ctx.globalAlpha = 1.0;
+        }
+
+        function renderTrendAnalysis(allRows, matchVals) {
+            var wrap = document.getElementById('trendAnalysisWrap');
+            var panel = document.getElementById('trendPanel');
+            if (!allRows || allRows.length < 10) { wrap.style.display = 'none'; return; }
+            wrap.style.display = '';
+
+            var mv = matchVals;
+            // Three levels
+            var coarse = allRows.filter(function(r) {
+                return Math.abs(r[2] - mv.L) <= 0.2 && Math.abs(r[4] - mv.U) <= 0.1 && Math.abs(r[6] - mv.X) <= 0.2;
+            });
+            var fine = allRows.filter(function(r) {
+                return Math.abs(r[2] - mv.L) <= 0.1 && Math.abs(r[4] - mv.U) <= 0.05 && Math.abs(r[6] - mv.X) <= 0.1;
+            });
+
+            function countResults(rows) {
+                var up = 0, dn = 0, zou = 0;
+                for (var i = 0; i < rows.length; i++) {
+                    if (rows[i][7] === '上') up++;
+                    else if (rows[i][7] === '下') dn++;
+                    else zou++;
+                }
+                return { up: up, dn: dn, zou: zou, total: rows.length };
+            }
+
+            var levels = [
+                { name: '全部', rows: allRows, c: countResults(allRows) },
+                { name: '初筛', rows: coarse, c: countResults(coarse) },
+                { name: '细筛', rows: fine, c: countResults(fine) }
+            ];
+
+            // Build table
+            var html = '<table class="trend-table"><thead><tr>';
+            html += '<th>层级</th><th>场次</th><th>上盘</th><th>下盘</th><th>走盘</th><th>上盘占比</th><th>比例条</th><th>漂移</th>';
+            html += '</tr></thead><tbody>';
+
+            var prevRatio = null;
+            var ratios = [];
+            for (var i = 0; i < levels.length; i++) {
+                var lv = levels[i];
+                var c = lv.c;
+                var updn = c.up + c.dn;
+                var ratio = updn > 0 ? c.up / updn : 0.5;
+                ratios.push(ratio);
+                var pctUp = (ratio * 100).toFixed(1);
+                var pctDn = ((1 - ratio) * 100).toFixed(1);
+
+                // Drift arrow
+                var drift = '';
+                if (prevRatio !== null && updn >= 3) {
+                    var diff = ratio - prevRatio;
+                    if (diff > 0.02) drift = '<span class="trend-drift up">↑+' + (diff * 100).toFixed(1) + '%</span>';
+                    else if (diff < -0.02) drift = '<span class="trend-drift dn">↓' + (diff * 100).toFixed(1) + '%</span>';
+                    else drift = '<span class="trend-drift flat">→持平</span>';
+                }
+
+                // Bar
+                var barW_up = c.total > 0 ? (c.up / c.total * 100) : 0;
+                var barW_dn = c.total > 0 ? (c.dn / c.total * 100) : 0;
+                var barW_zou = c.total > 0 ? (c.zou / c.total * 100) : 0;
+                var bar = '<div class="trend-bar-wrap">' +
+                    '<div class="trend-bar-up" style="width:' + barW_up + '%"></div>' +
+                    '<div class="trend-bar-dn" style="width:' + barW_dn + '%"></div>' +
+                    '<div class="trend-bar-zou" style="width:' + barW_zou + '%"></div>' +
+                    '</div>';
+
+                html += '<tr>';
+                html += '<td class="level-label">' + lv.name + '</td>';
+                html += '<td>' + c.total + '</td>';
+                html += '<td style="color:#e53935;font-weight:600">' + c.up + '</td>';
+                html += '<td style="color:#4caf50;font-weight:600">' + c.dn + '</td>';
+                html += '<td style="color:#ff9800;font-weight:600">' + c.zou + '</td>';
+                html += '<td><strong>' + pctUp + '%</strong></td>';
+                html += '<td>' + bar + '</td>';
+                html += '<td>' + drift + '</td>';
+                html += '</tr>';
+
+                if (updn >= 3) prevRatio = ratio;
+            }
+            html += '</tbody></table>';
+
+            // Conclusion
+            var allRatio = ratios[0];
+            var coarseRatio = levels[1].c.up + levels[1].c.dn >= 3 ? ratios[1] : null;
+            var fineRatio = levels[2].c.up + levels[2].c.dn >= 3 ? ratios[2] : null;
+
+            // Determine direction and confidence
+            var direction = '';  // '上' or '下'
+            var confidence = '';  // 'strong', 'moderate', 'weak'
+            var reason = '';
+
+            // Check consistency of direction across levels
+            var dirs = [];
+            if (allRatio > 0.5) dirs.push('上'); else if (allRatio < 0.5) dirs.push('下'); else dirs.push('平');
+            if (coarseRatio !== null) {
+                if (coarseRatio > 0.5) dirs.push('上'); else if (coarseRatio < 0.5) dirs.push('下'); else dirs.push('平');
+            }
+            if (fineRatio !== null) {
+                if (fineRatio > 0.5) dirs.push('上'); else if (fineRatio < 0.5) dirs.push('下'); else dirs.push('平');
+            }
+
+            var allSame = dirs.every(function(d) { return d === dirs[0]; });
+            var mainDir = dirs[dirs.length - 1]; // use finest available level
+
+            // Check drift trend
+            var drifts = [];
+            if (coarseRatio !== null) drifts.push(coarseRatio - allRatio);
+            if (fineRatio !== null && coarseRatio !== null) drifts.push(fineRatio - coarseRatio);
+            var consistentDrift = drifts.length >= 2 && ((drifts[0] > 0 && drifts[1] > 0) || (drifts[0] < 0 && drifts[1] < 0));
+            var driftDir = drifts.length > 0 ? (drifts[drifts.length - 1] > 0 ? '上' : '下') : '';
+
+            if (allSame && dirs[0] !== '平') {
+                direction = dirs[0];
+                if (consistentDrift && driftDir === direction) {
+                    confidence = 'strong';
+                    reason = '三级方向一致（' + direction + '），且漂移持续增强';
+                } else {
+                    confidence = 'moderate';
+                    reason = '三级方向一致（' + direction + '），但漂移不连续';
+                }
+            } else if (dirs.length >= 2) {
+                // Not all same
+                if (fineRatio !== null && Math.abs(fineRatio - 0.5) > Math.abs(allRatio - 0.5)) {
+                    direction = fineRatio > 0.5 ? '上' : '下';
+                    confidence = 'weak';
+                    reason = '各级方向不一致，细筛偏向' + direction + '但信号较弱';
+                } else {
+                    direction = allRatio > 0.5 ? '上' : '下';
+                    confidence = 'weak';
+                    reason = '各级方向不一致，全局偏向' + direction + '但筛选后减弱';
+                }
+            } else {
+                direction = allRatio >= 0.5 ? '上' : '下';
+                confidence = 'weak';
+                reason = '数据不足以进行多级分析';
+            }
+
+            var confLabel = confidence === 'strong' ? '🟢 强信号' : confidence === 'moderate' ? '🟡 中等信号' : '🔴 弱信号';
+            var dirColor = direction === '上' ? '#e53935' : '#4caf50';
+
+            html += '<div class="trend-conclusion ' + confidence + '">';
+            html += '<strong>' + confLabel + '</strong> &nbsp; ';
+            html += '趋势方向：<span style="color:' + dirColor + ';font-weight:700;font-size:16px;">' + direction + '盘</span><br>';
+            html += '<span style="color:#666;font-size:13px;">' + reason + '</span>';
+            html += '</div>';
+
+            panel.innerHTML = html;
         }
 
         // Close modal on overlay click
