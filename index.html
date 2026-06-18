@@ -1180,6 +1180,9 @@
                 return Math.abs(r[2] - mv.L) <= 0.2 && Math.abs(r[4] - mv.U) <= 0.1 && Math.abs(r[6] - mv.X) <= 0.2;
             });
             renderNormalDistCharts(scatterGroupRows, scatterCurrentMatch.vals, coarseForNorm);
+            // Update title to show counts
+            var ndTitle = document.querySelector('#normalDistWrap > div:first-child');
+            if (ndTitle) ndTitle.textContent = '📈 正态分布分析（全部 ' + scatterGroupRows.length + '场，初筛 ' + coarseForNorm.length + '场叠加）';
             document.getElementById('normalDistCoarseWrap').style.display = 'none';
             renderTrendAnalysis(scatterGroupRows, scatterCurrentMatch.vals);
         }
@@ -1587,7 +1590,7 @@
 
                 // Compute coarse curves
                 var coarseData = null;
-                if (coarseRows && coarseRows.length >= 10) {
+                if (coarseRows && coarseRows.length >= 3) {
                     coarseData = computeNormalCurves(coarseRows, ci, xMin, xMax, nSteps);
                 }
 
