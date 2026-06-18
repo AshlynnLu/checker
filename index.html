@@ -534,6 +534,28 @@
         .scatter-modal-arrow.left { left: -60px; }
         .scatter-modal-arrow.right { right: -60px; }
 
+        .normal-dist-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 12px;
+        }
+        @media (max-width: 900px) {
+            .normal-dist-grid { grid-template-columns: repeat(2, 1fr); }
+        }
+        .normal-dist-box {
+            text-align: center;
+        }
+        .normal-dist-box canvas {
+            width: 100% !important;
+            height: auto !important;
+        }
+        .normal-dist-box .chart-label {
+            font-size: 12px;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 4px;
+        }
+
         /* 趋势分析面板 */
         .trend-panel {
             background: #fff;
@@ -740,6 +762,11 @@
             <div id="trendAnalysisWrap" style="display:none; margin-top:18px;">
                 <div style="font-weight:700; font-size:15px; margin-bottom:10px; color:#333;">📊 趋势分析</div>
                 <div class="trend-panel" id="trendPanel"></div>
+            </div>
+            <!-- 正态分布图 -->
+            <div id="normalDistWrap" style="display:none; margin-top:18px;">
+                <div style="font-weight:700; font-size:15px; margin-bottom:10px; color:#333;">📈 正态分布分析（全部数据）</div>
+                <div class="normal-dist-grid" id="normalDistGrid"></div>
             </div>
         </div>
     </div>
@@ -1143,6 +1170,7 @@
             document.getElementById('btnScatterReset').style.display = '';
 
             drawScatterCharts(scatterGroupRows, scatterCurrentMatch.vals, false);
+            renderNormalDistCharts(scatterGroupRows, scatterCurrentMatch.vals);
             renderTrendAnalysis(scatterGroupRows, scatterCurrentMatch.vals);
         }
 
@@ -1450,6 +1478,188 @@
             }
             ctx.lineWidth = 1;
             ctx.globalAlpha = 1.0;
+        }
+
+        function gaussianPDF(x, mu, sigma) {
+            if (sigma < 0.001) sigma = 0.001;
+            var z = (x - mu) / sigma;
+            return Math.exp(-0.5 * z * z) / (sigma * Math.sqrt(2 * Math.PI));
+        }
+
+        function renderNormalDistCharts(allRows, matchVals) {
+            var wrap = document.getElementById('normalDistWrap');
+            var grid = document.getElementById('normalDistGrid');
+            if (!allRows || allRows.length < 10) { wrap.style.display = 'none'; return; }
+            wrap.style.display = '';
+            grid.innerHTML = '';
+
+            var cols = SCATTER_COLS;
+
+            // Split rows by result
+            var byResult = { '上': [], '下': [], '走': [] };
+            for (var i = 0; i < allRows.length; i++) {
+                var res = allRows[i][7];
+                if (byResult[res]) byResult[res].push(allRows[i]);
+            }
+
+            var resultCfg = [
+                { key: '上', color: 'rgba(229,57,53,0.8)', fill: 'rgba(229,57,53,0.12)' },
+                { key: '下', color: 'rgba(76,175,80,0.8)', fill: 'rgba(76,175,80,0.12)' },
+                { key: '走', color: 'rgba(255,152,0,0.8)', fill: 'rgba(255,152,0,0.12)' }
+            ];
+
+            for (var ci = 0; ci < cols.length; ci++) {
+                var col = cols[ci];
+                var range = LINE_FIXED_RANGES[col];
+                var xMin = range[0], xMax = range[1];
+                var userVal = matchVals[col];
+
+                var box = document.createElement('div');
+                box.className = 'normal-dist-box';
+                var label = document.createElement('div');
+                label.className = 'chart-label';
+                label.textContent = col + ' ' + SCATTER_COL_NAMES[col];
+                box.appendChild(label);
+
+                var W = 400, H = 280;
+                var canvas = document.createElement('canvas');
+                canvas.width = W;
+                canvas.height = H;
+                box.appendChild(canvas);
+                grid.appendChild(box);
+
+                var ctx = canvas.getContext('2d');
+                var padTop = 20, padBot = 36, padLeft = 10, padRight = 10;
+                var plotW = W - padLeft - padRight;
+                var plotH = H - padTop - padBot;
+                var nSteps = 200;
+
+                // Background
+                ctx.fillStyle = '#fafafa';
+                ctx.fillRect(0, 0, W, H);
+                ctx.strokeStyle = '#e0e0e0';
+                ctx.strokeRect(0, 0, W, H);
+
+                function valToX(v) {
+                    return padLeft + (v - xMin) / (xMax - xMin) * plotW;
+                }
+
+                // Compute all curves first to find max PDF for Y scaling
+                var allCurves = [];
+                var globalMaxPDF = 0;
+                for (var ri = 0; ri < resultCfg.length; ri++) {
+                    var rk = resultCfg[ri].key;
+                    var rRows = byResult[rk];
+                    if (rRows.length < 3) { allCurves.push(null); continue; }
+
+                    var vals = [];
+                    for (var j = 0; j < rRows.length; j++) vals.push(rRows[j][ci]);
+                    var mean = 0;
+                    for (var j = 0; j < vals.length; j++) mean += vals[j];
+                    mean /= vals.length;
+                    var variance = 0;
+                    for (var j = 0; j < vals.length; j++) variance += (vals[j] - mean) * (vals[j] - mean);
+                    variance /= vals.length;
+                    var std = Math.sqrt(variance);
+
+                    var points = [];
+                    for (var s = 0; s <= nSteps; s++) {
+                        var xv = xMin + (xMax - xMin) * s / nSteps;
+                        var pdf = gaussianPDF(xv, mean, std);
+                        points.push({ x: xv, y: pdf });
+                        if (pdf > globalMaxPDF) globalMaxPDF = pdf;
+                    }
+                    allCurves.push({ points: points, mean: mean, std: std, count: rRows.length });
+                }
+
+                if (globalMaxPDF < 0.001) globalMaxPDF = 1;
+
+                function pdfToY(pdf) {
+                    return padTop + plotH - (pdf / globalMaxPDF) * plotH;
+                }
+
+                // X axis line
+                ctx.strokeStyle = '#ccc';
+                ctx.beginPath();
+                ctx.moveTo(padLeft, padTop + plotH);
+                ctx.lineTo(padLeft + plotW, padTop + plotH);
+                ctx.stroke();
+
+                // X axis ticks
+                ctx.fillStyle = '#999';
+                ctx.font = '10px sans-serif';
+                ctx.textAlign = 'center';
+                var nTicks = 5;
+                for (var t = 0; t <= nTicks; t++) {
+                    var tv = xMin + (xMax - xMin) * t / nTicks;
+                    var tx = valToX(tv);
+                    ctx.fillText(tv.toFixed(2), tx, H - 8);
+                    ctx.strokeStyle = '#eee';
+                    ctx.beginPath();
+                    ctx.moveTo(tx, padTop);
+                    ctx.lineTo(tx, padTop + plotH);
+                    ctx.stroke();
+                }
+
+                // Draw curves (filled + stroke)
+                for (var ri = 0; ri < resultCfg.length; ri++) {
+                    if (!allCurves[ri]) continue;
+                    var pts = allCurves[ri].points;
+                    var cfg = resultCfg[ri];
+
+                    // Fill
+                    ctx.beginPath();
+                    ctx.moveTo(valToX(pts[0].x), padTop + plotH);
+                    for (var s = 0; s < pts.length; s++) {
+                        ctx.lineTo(valToX(pts[s].x), pdfToY(pts[s].y));
+                    }
+                    ctx.lineTo(valToX(pts[pts.length - 1].x), padTop + plotH);
+                    ctx.closePath();
+                    ctx.fillStyle = cfg.fill;
+                    ctx.fill();
+
+                    // Stroke
+                    ctx.beginPath();
+                    for (var s = 0; s < pts.length; s++) {
+                        var px = valToX(pts[s].x);
+                        var py = pdfToY(pts[s].y);
+                        if (s === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+                    }
+                    ctx.strokeStyle = cfg.color;
+                    ctx.lineWidth = 2;
+                    ctx.stroke();
+                    ctx.lineWidth = 1;
+                }
+
+                // User value: black vertical line
+                var ux = valToX(Math.max(xMin, Math.min(xMax, userVal)));
+                ctx.strokeStyle = '#000';
+                ctx.lineWidth = 2;
+                ctx.setLineDash([6, 3]);
+                ctx.beginPath();
+                ctx.moveTo(ux, padTop);
+                ctx.lineTo(ux, padTop + plotH);
+                ctx.stroke();
+                ctx.setLineDash([]);
+                ctx.lineWidth = 1;
+
+                // Label for user value
+                ctx.fillStyle = '#000';
+                ctx.font = 'bold 11px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.fillText(userVal.toFixed(2), ux, padTop - 5);
+
+                // Legend: count per result at top-right
+                ctx.font = '10px sans-serif';
+                ctx.textAlign = 'right';
+                var ly = padTop + 12;
+                for (var ri = 0; ri < resultCfg.length; ri++) {
+                    if (!allCurves[ri]) continue;
+                    ctx.fillStyle = resultCfg[ri].color;
+                    ctx.fillText(resultCfg[ri].key + ' ' + allCurves[ri].count + '场', W - padRight - 4, ly);
+                    ly += 14;
+                }
+            }
         }
 
         function renderTrendAnalysis(allRows, matchVals) {
