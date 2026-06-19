@@ -1470,10 +1470,13 @@
                     return rows[i][sp.b] - rows[i][sp.a];
                 });
                 let distSq = 0;
+                const dists = [];
                 for (let s = 0; s < slopes.length; s++) {
-                    distSq += (slopes[s] - userSlopes[s]) * (slopes[s] - userSlopes[s]);
+                    var d = Math.abs(slopes[s] - userSlopes[s]);
+                    dists.push(d);
+                    distSq += d * d;
                 }
-                rowData.push({ idx: i, slopes: slopes, dist: Math.sqrt(distSq), result: rows[i][7] });
+                rowData.push({ idx: i, slopes: slopes, dists: dists, dist: Math.sqrt(distSq), result: rows[i][7] });
             }
 
             rowData.sort(function(a, b) { return a.dist - b.dist; });
@@ -1488,7 +1491,10 @@
             for (var s = 0; s < SLOPE_PAIRS.length; s++) {
                 html += '<th style="border:1px solid #ddd; padding:6px 8px;">斜率 ' + SLOPE_PAIRS[s].name + '</th>';
             }
-            html += '<th style="border:1px solid #ddd; padding:6px 8px;">距离</th>';
+            for (var s = 0; s < SLOPE_PAIRS.length; s++) {
+                html += '<th style="border:1px solid #ddd; padding:6px 8px;">距离 ' + SLOPE_PAIRS[s].name + '</th>';
+            }
+            html += '<th style="border:1px solid #ddd; padding:6px 8px;">综合距离</th>';
             html += '</tr></thead><tbody>';
 
             // 先显示当前比赛
@@ -1497,6 +1503,9 @@
             html += '<td style="border:1px solid #ddd; padding:4px 8px;">—</td>';
             for (var s = 0; s < userSlopes.length; s++) {
                 html += '<td style="border:1px solid #ddd; padding:4px 8px; text-align:center;">' + userSlopes[s].toFixed(4) + '</td>';
+            }
+            for (var s = 0; s < userSlopes.length; s++) {
+                html += '<td style="border:1px solid #ddd; padding:4px 8px; text-align:center;">—</td>';
             }
             html += '<td style="border:1px solid #ddd; padding:4px 8px; text-align:center;">—</td>';
             html += '</tr>';
@@ -1513,6 +1522,9 @@
                 html += '<td style="border:1px solid #ddd; padding:4px 8px; color:' + resColor + '; font-weight:bold;">' + d.result + '</td>';
                 for (var s = 0; s < d.slopes.length; s++) {
                     html += '<td style="border:1px solid #ddd; padding:4px 8px; text-align:center;">' + d.slopes[s].toFixed(4) + '</td>';
+                }
+                for (var s = 0; s < d.dists.length; s++) {
+                    html += '<td style="border:1px solid #ddd; padding:4px 8px; text-align:center;">' + d.dists[s].toFixed(4) + '</td>';
                 }
                 html += '<td style="border:1px solid #ddd; padding:4px 8px; text-align:center;">' + d.dist.toFixed(4) + '</td>';
                 html += '</tr>';
@@ -1685,7 +1697,7 @@
 
             // Fine filter: blue vertical mark lines at curve peaks
             if (fineData) {
-                var fineColors = ['rgba(33,150,243,0.9)', 'rgba(33,150,243,0.6)', 'rgba(33,150,243,0.4)'];
+                var fineColors = ['rgba(229,57,53,0.8)', 'rgba(76,175,80,0.8)', 'rgba(255,152,0,0.8)'];
                 for (var ri = 0; ri < fineData.curves.length; ri++) {
                     if (!fineData.curves[ri]) continue;
                     var peakX = fineData.curves[ri].mean;
