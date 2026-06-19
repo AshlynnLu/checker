@@ -1135,10 +1135,10 @@
             // 正态分布：全部 + 初筛叠加 + 细筛蓝线
             var mv = scatterCurrentMatch.vals;
             var coarseForNorm = scatterGroupRows.filter(function(r) {
-                return Math.abs(r[2] - mv.L) <= 0.2 && Math.abs(r[4] - mv.U) <= 0.1 && Math.abs(r[5] - mv.X) <= 0.2;
+                return Math.abs(r[2] - mv.L) <= 0.2 && Math.abs(r[4] - mv.U) <= 0.1 && Math.abs(r[5] - mv.X) <= 0.2 && Math.abs(r[6] - mv.Y) <= 0.2;
             });
             var fineForNorm = scatterGroupRows.filter(function(r) {
-                return Math.abs(r[2] - mv.L) <= 0.1 && Math.abs(r[4] - mv.U) <= 0.05 && Math.abs(r[5] - mv.X) <= 0.1;
+                return Math.abs(r[2] - mv.L) <= 0.1 && Math.abs(r[4] - mv.U) <= 0.05 && Math.abs(r[5] - mv.X) <= 0.1 && Math.abs(r[6] - mv.Y) <= 0.1;
             });
             renderNormalDistCharts(scatterGroupRows, scatterCurrentMatch.vals, coarseForNorm, fineForNorm);
             var ndTitle = document.querySelector('#normalDistWrap > div:first-child');
@@ -1146,20 +1146,21 @@
             document.getElementById('normalDistCoarseWrap').style.display = 'none';
         }
 
-        // 细筛条件: L±0.1, U±0.05, X±0.1; 初筛条件: 各放大一倍 L±0.2, U±0.1, X±0.2
+        // 筛选条件: 初筛 L±0.2, U±0.1, X±0.2, Y±0.2; 细筛 L±0.1, U±0.05, X±0.1, Y±0.1
         function scatterFilter(mode) {
             if (!scatterGroupRows || !scatterCurrentMatch) return;
             const mv = scatterCurrentMatch.vals;
-            var tL, tU, tX, label;
+            var tL, tU, tX, tY, label;
             if (mode === 'coarse') {
-                tL = 0.2; tU = 0.1; tX = 0.2; label = '初筛';
+                tL = 0.2; tU = 0.1; tX = 0.2; tY = 0.2; label = '初筛';
             } else {
-                tL = 0.1; tU = 0.05; tX = 0.1; label = '细筛';
+                tL = 0.1; tU = 0.05; tX = 0.1; tY = 0.1; label = '细筛';
             }
             const filtered = scatterGroupRows.filter(function(row) {
                 return Math.abs(row[2] - mv.L) <= tL &&
                        Math.abs(row[4] - mv.U) <= tU &&
-                       Math.abs(row[5] - mv.X) <= tX;
+                       Math.abs(row[5] - mv.X) <= tX &&
+                       Math.abs(row[6] - mv.Y) <= tY;
             });
             scatterFiltered = mode;
             document.getElementById('scatterMorphInfo').textContent =
