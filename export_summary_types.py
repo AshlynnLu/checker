@@ -337,7 +337,7 @@ def _load_base_table(path: str) -> List[Dict[str, Optional[float]]]:
     # O(马主), P(马平), Q(马客), U(主差), V(平差), W(客差), X(澳平客差) 用于条件+范围
     # AB(亚果) 用于统计上/走/下
     data_rows: List[Dict[str, Any]] = []
-    num_cols = ["E", "G", "I", "K", "L", "M", "O", "P", "Q", "U", "V", "W", "X"]
+    num_cols = ["E", "G", "I", "K", "L", "M", "O", "P", "Q", "U", "V", "W", "X", "Y"]
     for r_idx in sorted(rows_raw.keys()):
         if r_idx <= 1:
             continue  # 跳过表头
@@ -607,7 +607,7 @@ def _export_scatter_data(base_rows: List[Dict[str, Any]], out_path: str) -> None
 
     格式紧凑：每组为 { cols: [...], rows: [[v1,v2,...,result], ...] }
     """
-    SCATTER_COLS = ["E", "G", "L", "P", "U", "W", "X"]
+    SCATTER_COLS = ["E", "G", "L", "P", "U", "X", "Y"]
     buckets: Dict[str, List[List[Any]]] = defaultdict(list)
 
     for row in base_rows:

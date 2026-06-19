@@ -556,59 +556,6 @@
             margin-bottom: 4px;
         }
 
-        /* 趋势分析面板 */
-        .trend-panel {
-            background: #fff;
-            border-radius: 10px;
-            padding: 16px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-        }
-        .trend-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-bottom: 14px;
-            font-size: 14px;
-        }
-        .trend-table th {
-            background: #f5f6fa;
-            padding: 8px 10px;
-            text-align: center;
-            font-weight: 600;
-            border-bottom: 2px solid #e0e0e0;
-        }
-        .trend-table td {
-            padding: 8px 10px;
-            text-align: center;
-            border-bottom: 1px solid #f0f0f0;
-        }
-        .trend-table .level-label { font-weight: 600; text-align: left; }
-        .trend-bar-wrap {
-            display: flex;
-            height: 22px;
-            border-radius: 4px;
-            overflow: hidden;
-            min-width: 120px;
-        }
-        .trend-bar-up { background: #e53935; }
-        .trend-bar-dn { background: #4caf50; }
-        .trend-bar-zou { background: #ff9800; }
-        .trend-drift {
-            font-weight: 700;
-            font-size: 13px;
-        }
-        .trend-drift.up { color: #e53935; }
-        .trend-drift.dn { color: #4caf50; }
-        .trend-drift.flat { color: #999; }
-        .trend-conclusion {
-            margin-top: 12px;
-            padding: 12px 16px;
-            border-radius: 8px;
-            font-size: 14px;
-            line-height: 1.6;
-        }
-        .trend-conclusion.strong { background: #e8f5e9; border-left: 4px solid #4caf50; }
-        .trend-conclusion.moderate { background: #fff8e1; border-left: 4px solid #ff9800; }
-        .trend-conclusion.weak { background: #fce4ec; border-left: 4px solid #e53935; }
     </style>
 </head>
 <body>
@@ -631,7 +578,7 @@
         
         <div class="input-section" id="inputSection" style="display: none;">
             <div class="paste-section">
-                <label for="pasteData">快速粘贴（按列顺序：A B C D E F G H I K L M O P Q U V W X，用制表符或空格分隔）：</label>
+                <label for="pasteData">快速粘贴（按列顺序：A B C D E F G H I K L M O P Q U V W X Y，用制表符或空格分隔）：</label>
                 <textarea id="pasteData" placeholder="例如：英超	客	4	0	0.8	0	0.78	0	0.02	2.4	3.1	2.7	2.39	2.9	2.74	-0.01	-0.20	0.04	0.15"></textarea>
                 <p class="paste-hint">💡 提示：从Excel或表格中复制整行数据，然后粘贴到上方文本框，点击"解析数据"按钮即可自动填充</p>
                 <button class="btn-parse" onclick="parsePastedData()">解析数据</button>
@@ -714,6 +661,10 @@
                     <label>X（澳平客差）</label>
                     <input type="text" id="X" placeholder="数值">
                 </div>
+                <div class="input-group">
+                    <label>Y（马平客差）</label>
+                    <input type="text" id="Y" placeholder="数值">
+                </div>
             </div>
             
             <div class="button-group">
@@ -757,11 +708,7 @@
             <div id="scatterLineChartWrap" style="display:none; margin-top:18px;">
                 <div id="lineChartTitle" style="font-weight:700; font-size:14px; margin-bottom:6px; color:#333;">折线总览</div>
                 <canvas id="scatterLineCanvas" style="width:100%; border:1px solid #e0e0e0; border-radius:6px; background:#fafafa;"></canvas>
-            </div>
-            <!-- 趋势分析面板 -->
-            <div id="trendAnalysisWrap" style="display:none; margin-top:18px;">
-                <div style="font-weight:700; font-size:15px; margin-bottom:10px; color:#333;">📊 趋势分析</div>
-                <div class="trend-panel" id="trendPanel"></div>
+                <div id="slopeTableWrap" style="display:none; margin-top:10px;"></div>
             </div>
             <!-- 正态分布图 -->
             <div id="normalDistWrap" style="display:none; margin-top:18px;">
@@ -825,7 +772,7 @@
             
             // 收集数据
             const data = {};
-            const columns = ['A','B','C','D','E','F','G','H','I','K','L','M','O','P','Q','U','V','W','X'];
+            const columns = ['A','B','C','D','E','F','G','H','I','K','L','M','O','P','Q','U','V','W','X','Y'];
             for (let col of columns) {
                 const input = document.getElementById(col);
                 const val = input.value.trim();
@@ -1054,18 +1001,18 @@
             parts = parts.map(p => p.trim()).filter(p => p.length > 0);
             
             // 验证数据数量（共19列：A B C D E F G H I K L M O P Q U V W X）
-            if (parts.length < 19) {
-                alert(`数据列数不足：期望19列（A B C D E F G H I K L M O P Q U V W X），实际${parts.length}列。\n\n请确保数据完整，列之间用制表符或空格分隔。`);
+            if (parts.length < 20) {
+                alert(`数据列数不足：期望20列（A B C D E F G H I K L M O P Q U V W X），实际${parts.length}列。\n\n请确保数据完整，列之间用制表符或空格分隔。`);
                 return;
             }
             
-            if (parts.length > 19) {
-                alert(`数据列数过多：期望19列（A B C D E F G H I K L M O P Q U V W X），实际${parts.length}列。\n\n将使用前19列数据。`);
+            if (parts.length > 20) {
+                alert(`数据列数过多：期望20列（A B C D E F G H I K L M O P Q U V W X），实际${parts.length}列。\n\n将使用前19列数据。`);
             }
             
             // 填充到各个输入框
-            const columns = ['A','B','C','D','E','F','G','H','I','K','L','M','O','P','Q','U','V','W','X'];
-            for (let i = 0; i < 19 && i < parts.length; i++) {
+            const columns = ['A','B','C','D','E','F','G','H','I','K','L','M','O','P','Q','U','V','W','X','Y'];
+            for (let i = 0; i < 20 && i < parts.length; i++) {
                 const col = columns[i];
                 const input = document.getElementById(col);
                 if (input) {
@@ -1088,7 +1035,7 @@
             // 清空粘贴框
             document.getElementById('pasteData').value = '';
             // 清空所有输入框
-            const columns = ['A','B','C','D','E','F','G','H','I','K','L','M','O','P','Q','U','V','W','X'];
+            const columns = ['A','B','C','D','E','F','G','H','I','K','L','M','O','P','Q','U','V','W','X','Y'];
             for (let col of columns) {
                 document.getElementById(col).value = '';
             }
@@ -1116,8 +1063,8 @@
         let scatterGroupRows = null;      // array of rows from matched group
         let scatterFiltered = null;
 
-        const SCATTER_COLS = ['E','G','L','P','U','W','X'];
-        const SCATTER_COL_NAMES = {E:"澳上水", G:"马上水", L:"澳平", P:"马平", U:"主差", W:"客差", X:"澳平客差"};
+        const SCATTER_COLS = ['E','G','L','P','U','X','Y'];
+        const SCATTER_COL_NAMES = {E:"澳上水", G:"马上水", L:"澳平", P:"马平", U:"主差", X:"澳平客差", Y:"马平客差"};
         const SCATTER_RESULT_COLORS = {"上":"#e53935", "下":"#4caf50", "走":"#ff9800"};
 
         async function loadScatterData() {
@@ -1132,12 +1079,12 @@
             let parts = text.trim().split(/\t/);
             if (parts.length === 1) parts = text.trim().split(/\s+/);
             parts = parts.map(p => p.trim()).filter(p => p.length > 0);
-            if (parts.length < 19) {
-                throw new Error('数据列数不足：期望19列，实际' + parts.length + '列');
+            if (parts.length < 20) {
+                throw new Error('数据列数不足：期望20列，实际' + parts.length + '列');
             }
-            const columns = ['A','B','C','D','E','F','G','H','I','K','L','M','O','P','Q','U','V','W','X'];
+            const columns = ['A','B','C','D','E','F','G','H','I','K','L','M','O','P','Q','U','V','W','X','Y'];
             const data = {};
-            for (let i = 0; i < 19; i++) {
+            for (let i = 0; i < 20; i++) {
                 data[columns[i]] = parts[i];
             }
             return data;
@@ -1185,17 +1132,18 @@
             document.getElementById('btnScatterReset').style.display = '';
 
             drawScatterCharts(scatterGroupRows, scatterCurrentMatch.vals, false);
-            // 正态分布：全部 + 初筛叠加
+            // 正态分布：全部 + 初筛叠加 + 细筛蓝线
             var mv = scatterCurrentMatch.vals;
             var coarseForNorm = scatterGroupRows.filter(function(r) {
-                return Math.abs(r[2] - mv.L) <= 0.2 && Math.abs(r[4] - mv.U) <= 0.1 && Math.abs(r[6] - mv.X) <= 0.2;
+                return Math.abs(r[2] - mv.L) <= 0.2 && Math.abs(r[4] - mv.U) <= 0.1 && Math.abs(r[5] - mv.X) <= 0.2;
             });
-            renderNormalDistCharts(scatterGroupRows, scatterCurrentMatch.vals, coarseForNorm);
-            // Update title to show counts
+            var fineForNorm = scatterGroupRows.filter(function(r) {
+                return Math.abs(r[2] - mv.L) <= 0.1 && Math.abs(r[4] - mv.U) <= 0.05 && Math.abs(r[5] - mv.X) <= 0.1;
+            });
+            renderNormalDistCharts(scatterGroupRows, scatterCurrentMatch.vals, coarseForNorm, fineForNorm);
             var ndTitle = document.querySelector('#normalDistWrap > div:first-child');
-            if (ndTitle) ndTitle.textContent = '📈 正态分布分析（全部 ' + scatterGroupRows.length + '场，初筛 ' + coarseForNorm.length + '场叠加）';
+            if (ndTitle) ndTitle.textContent = '📈 正态分布分析（全部 ' + scatterGroupRows.length + '场，初筛 ' + coarseForNorm.length + '场，细筛 ' + fineForNorm.length + '场）';
             document.getElementById('normalDistCoarseWrap').style.display = 'none';
-            renderTrendAnalysis(scatterGroupRows, scatterCurrentMatch.vals);
         }
 
         // 细筛条件: L±0.1, U±0.05, X±0.1; 初筛条件: 各放大一倍 L±0.2, U±0.1, X±0.2
@@ -1211,7 +1159,7 @@
             const filtered = scatterGroupRows.filter(function(row) {
                 return Math.abs(row[2] - mv.L) <= tL &&
                        Math.abs(row[4] - mv.U) <= tU &&
-                       Math.abs(row[6] - mv.X) <= tX;
+                       Math.abs(row[5] - mv.X) <= tX;
             });
             scatterFiltered = mode;
             document.getElementById('scatterMorphInfo').textContent =
@@ -1383,10 +1331,11 @@
         }
 
         // 固定纵坐标范围
-        const LINE_FIXED_RANGES = {
+        const NORMDIST_FIXED_RANGES = {
             E: [0.5, 1.3], G: [0.5, 1.3], L: [2.4, 5.5], P: [2.4, 5.5],
-            U: [-0.35, 0.25], W: [-1.6, 2.8], X: [-5, 1.7]
+            U: [-0.35, 0.25], X: [-5, 1.7], Y: [-5, 1.7]
         };
+        const SLOPE_PAIRS = [{a:0, b:1, name:'E→G'}, {a:2, b:3, name:'L→P'}, {a:5, b:6, name:'X→Y'}];
 
         function renderLineChart(rows, matchVals, filterMode) {
             const wrap = document.getElementById('scatterLineChartWrap');
@@ -1401,12 +1350,19 @@
             const cols = SCATTER_COLS;
             const nCols = cols.length;
 
-            // 固定纵坐标
+            // 自缩放纵坐标：从数据中计算 min-0.1 / max+0.1
             const mins = [], maxs = [];
             for (let ci = 0; ci < nCols; ci++) {
-                const r = LINE_FIXED_RANGES[cols[ci]];
-                mins.push(r[0]);
-                maxs.push(r[1]);
+                let lo = Infinity, hi = -Infinity;
+                for (const row of rows) {
+                    if (row[ci] < lo) lo = row[ci];
+                    if (row[ci] > hi) hi = row[ci];
+                }
+                const mv = matchVals[cols[ci]];
+                if (mv < lo) lo = mv;
+                if (mv > hi) hi = mv;
+                mins.push(lo - 0.1);
+                maxs.push(hi + 0.1);
             }
 
             const W = 1200, H = 500;
@@ -1424,11 +1380,9 @@
                 return padTop + plotH - t * plotH;
             }
 
-            // Background
             ctx.fillStyle = '#fafafa';
             ctx.fillRect(0, 0, W, H);
 
-            // Vertical axis lines and labels for each column
             ctx.textAlign = 'center';
             for (let ci = 0; ci < nCols; ci++) {
                 const x = colX(ci);
@@ -1438,29 +1392,21 @@
                 ctx.lineTo(x, padTop + plotH);
                 ctx.stroke();
 
-                // Column name at bottom
                 ctx.fillStyle = '#333';
                 ctx.font = 'bold 13px sans-serif';
                 ctx.fillText(cols[ci] + ' ' + SCATTER_COL_NAMES[cols[ci]], x, H - 10);
 
-                // Min/max labels
                 ctx.fillStyle = '#999';
                 ctx.font = '11px sans-serif';
                 ctx.fillText(mins[ci].toFixed(2), x, padTop + plotH + 16);
                 ctx.fillText(maxs[ci].toFixed(2), x, padTop - 6);
             }
 
-            // Draw lines: 上 first, 下 second, 走 last
             const drawOrder = [
                 ...rows.filter(r => r[7] === '上'),
                 ...rows.filter(r => r[7] === '下'),
                 ...rows.filter(r => r[7] === '走'),
             ];
-
-            // Clamp value to fixed range boundaries
-            function clampVal(ci, v) {
-                return Math.max(mins[ci], Math.min(maxs[ci], v));
-            }
 
             ctx.lineWidth = 1;
             ctx.globalAlpha = filterMode ? 1.0 : 0.9;
@@ -1470,28 +1416,26 @@
                 ctx.beginPath();
                 for (let ci = 0; ci < nCols; ci++) {
                     const x = colX(ci);
-                    const y = normY(ci, clampVal(ci, row[ci]));
+                    const y = normY(ci, row[ci]);
                     if (ci === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
                 }
                 ctx.stroke();
             }
 
-            // Draw user line (blue, on top, fully opaque)
             ctx.globalAlpha = 1.0;
             ctx.strokeStyle = '#2196f3';
             ctx.lineWidth = 3;
             ctx.beginPath();
             for (let ci = 0; ci < nCols; ci++) {
                 const x = colX(ci);
-                const y = normY(ci, clampVal(ci, matchVals[cols[ci]]));
+                const y = normY(ci, matchVals[cols[ci]]);
                 if (ci === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
             }
             ctx.stroke();
 
-            // User dots at each column
             for (let ci = 0; ci < nCols; ci++) {
                 const x = colX(ci);
-                const y = normY(ci, clampVal(ci, matchVals[cols[ci]]));
+                const y = normY(ci, matchVals[cols[ci]]);
                 ctx.beginPath();
                 ctx.arc(x, y, 5, 0, Math.PI * 2);
                 ctx.fillStyle = '#2196f3';
@@ -1502,6 +1446,80 @@
             }
             ctx.lineWidth = 1;
             ctx.globalAlpha = 1.0;
+
+            // 斜率分析
+            renderSlopeTable(rows, matchVals);
+        }
+
+        function renderSlopeTable(rows, matchVals) {
+            const wrap = document.getElementById('slopeTableWrap');
+            if (!rows || rows.length === 0) { wrap.style.display = 'none'; return; }
+            wrap.style.display = '';
+
+            const cols = SCATTER_COLS;
+            // 计算当前比赛的斜率
+            const userSlopes = SLOPE_PAIRS.map(function(sp) {
+                return matchVals[cols[sp.b]] - matchVals[cols[sp.a]];
+            });
+
+            // 计算每场比赛的斜率和与用户斜率的欧氏距离
+            const rowData = [];
+            for (let i = 0; i < rows.length; i++) {
+                const slopes = SLOPE_PAIRS.map(function(sp) {
+                    return rows[i][sp.b] - rows[i][sp.a];
+                });
+                let distSq = 0;
+                for (let s = 0; s < slopes.length; s++) {
+                    distSq += (slopes[s] - userSlopes[s]) * (slopes[s] - userSlopes[s]);
+                }
+                rowData.push({ idx: i, slopes: slopes, dist: Math.sqrt(distSq), result: rows[i][7] });
+            }
+
+            rowData.sort(function(a, b) { return a.dist - b.dist; });
+
+            var closestIdx = rowData.length > 0 ? rowData[0].idx : -1;
+            var farthestIdx = rowData.length > 0 ? rowData[rowData.length - 1].idx : -1;
+
+            var html = '<table style="border-collapse:collapse; width:100%; font-size:13px; background:#fff;">';
+            html += '<thead><tr style="background:#f5f5f5;">';
+            html += '<th style="border:1px solid #ddd; padding:6px 8px;">#</th>';
+            html += '<th style="border:1px solid #ddd; padding:6px 8px;">结果</th>';
+            for (var s = 0; s < SLOPE_PAIRS.length; s++) {
+                html += '<th style="border:1px solid #ddd; padding:6px 8px;">斜率 ' + SLOPE_PAIRS[s].name + '</th>';
+            }
+            html += '<th style="border:1px solid #ddd; padding:6px 8px;">距离</th>';
+            html += '</tr></thead><tbody>';
+
+            // 先显示当前比赛
+            html += '<tr style="background:#e3f2fd; font-weight:bold;">';
+            html += '<td style="border:1px solid #ddd; padding:4px 8px;">当前</td>';
+            html += '<td style="border:1px solid #ddd; padding:4px 8px;">—</td>';
+            for (var s = 0; s < userSlopes.length; s++) {
+                html += '<td style="border:1px solid #ddd; padding:4px 8px; text-align:center;">' + userSlopes[s].toFixed(4) + '</td>';
+            }
+            html += '<td style="border:1px solid #ddd; padding:4px 8px; text-align:center;">—</td>';
+            html += '</tr>';
+
+            // 显示所有历史比赛（按距离排序）
+            for (var r = 0; r < rowData.length; r++) {
+                var d = rowData[r];
+                var bgColor = '#fff';
+                if (d.idx === closestIdx) bgColor = '#c8e6c9';
+                else if (d.idx === farthestIdx) bgColor = '#ffcdd2';
+                var resColor = SCATTER_RESULT_COLORS[d.result] || '#333';
+                html += '<tr style="background:' + bgColor + ';">';
+                html += '<td style="border:1px solid #ddd; padding:4px 8px;">' + (r + 1) + '</td>';
+                html += '<td style="border:1px solid #ddd; padding:4px 8px; color:' + resColor + '; font-weight:bold;">' + d.result + '</td>';
+                for (var s = 0; s < d.slopes.length; s++) {
+                    html += '<td style="border:1px solid #ddd; padding:4px 8px; text-align:center;">' + d.slopes[s].toFixed(4) + '</td>';
+                }
+                html += '<td style="border:1px solid #ddd; padding:4px 8px; text-align:center;">' + d.dist.toFixed(4) + '</td>';
+                html += '</tr>';
+            }
+
+            html += '</tbody></table>';
+            html += '<div style="font-size:11px; color:#888; margin-top:4px;">绿色=最接近当前比赛斜率 红色=最远离当前比赛斜率</div>';
+            wrap.innerHTML = html;
         }
 
         function gaussianPDF(x, mu, sigma) {
@@ -1557,12 +1575,13 @@
         // Store data for modal re-render
         var normDistAllRows = null;
         var normDistCoarseRows = null;
+        var normDistFineRows = null;
         var normDistMatchVals = null;
         var normDistModalIdx = 0;
 
-        function renderOneNormDist(canvas, ci, allRows, coarseRows, matchVals, isLarge) {
+        function renderOneNormDist(canvas, ci, allRows, coarseRows, fineRows, matchVals, isLarge) {
             var col = SCATTER_COLS[ci];
-            var range = LINE_FIXED_RANGES[col];
+            var range = NORMDIST_FIXED_RANGES[col];
             var xMin = range[0], xMax = range[1];
             var userVal = matchVals[col];
             var nSteps = 200;
@@ -1590,6 +1609,11 @@
             var coarseData = null;
             if (coarseRows && coarseRows.length >= 3) {
                 coarseData = computeNormalCurves(coarseRows, ci, xMin, xMax, nSteps);
+            }
+
+            var fineData = null;
+            if (fineRows && fineRows.length >= 3) {
+                fineData = computeNormalCurves(fineRows, ci, xMin, xMax, nSteps);
             }
 
             function valToX(v) { return padLeft + (v - xMin) / (xMax - xMin) * plotW; }
@@ -1656,6 +1680,30 @@
                 ctx.setLineDash([]);
             }
 
+            // Fine filter: blue vertical mark lines at curve peaks
+            if (fineData) {
+                var fineColors = ['rgba(33,150,243,0.9)', 'rgba(33,150,243,0.6)', 'rgba(33,150,243,0.4)'];
+                for (var ri = 0; ri < fineData.curves.length; ri++) {
+                    if (!fineData.curves[ri]) continue;
+                    var peakX = fineData.curves[ri].mean;
+                    var px = valToX(peakX);
+                    ctx.strokeStyle = fineColors[ri] || 'rgba(33,150,243,0.7)';
+                    ctx.lineWidth = isLarge ? 3 : 2;
+                    ctx.setLineDash([]);
+                    ctx.beginPath();
+                    ctx.moveTo(px, padTop);
+                    ctx.lineTo(px, padTop + plotH);
+                    ctx.stroke();
+                    ctx.lineWidth = 1;
+                    // Label
+                    ctx.fillStyle = fineColors[ri] || 'rgba(33,150,243,0.7)';
+                    ctx.font = 'bold ' + (isLarge ? 11 : 9) + 'px sans-serif';
+                    ctx.textAlign = 'center';
+                    var labelY = padTop + (isLarge ? 16 : 12) + ri * (isLarge ? 14 : 10);
+                    ctx.fillText('细' + normDistResultCfg[ri].key + ' ' + peakX.toFixed(2), px, labelY);
+                }
+            }
+
             // User value line
             var ux = valToX(Math.max(xMin, Math.min(xMax, userVal)));
             ctx.strokeStyle = '#000';
@@ -1687,14 +1735,14 @@
                 ctx.fillText(txt, W - padRight - 4, ly);
                 ly += (isLarge ? 18 : 14);
             }
-            if (coarseData) {
+            if (coarseData || fineData) {
                 ctx.fillStyle = '#999';
                 ctx.font = (isLarge ? 11 : 9) + 'px sans-serif';
-                ctx.fillText('实线=全部 虚线=初筛', W - padRight - 4, ly);
+                ctx.fillText('实线=全部 虚线=初筛 蓝线=细筛峰值', W - padRight - 4, ly);
             }
         }
 
-        function renderNormalDistCharts(allRows, matchVals, coarseRows) {
+        function renderNormalDistCharts(allRows, matchVals, coarseRows, fineRows) {
             var wrap = document.getElementById('normalDistWrap');
             var grid = document.getElementById('normalDistGrid');
             if (!allRows || allRows.length < 10) { wrap.style.display = 'none'; return; }
@@ -1703,6 +1751,7 @@
 
             normDistAllRows = allRows;
             normDistCoarseRows = coarseRows;
+            normDistFineRows = fineRows || null;
             normDistMatchVals = matchVals;
 
             for (var ci = 0; ci < SCATTER_COLS.length; ci++) {
@@ -1722,7 +1771,7 @@
                 box.appendChild(canvas);
                 grid.appendChild(box);
 
-                renderOneNormDist(canvas, ci, allRows, coarseRows, matchVals, false);
+                renderOneNormDist(canvas, ci, allRows, coarseRows, normDistFineRows, matchVals, false);
             }
         }
 
@@ -1745,156 +1794,7 @@
             document.getElementById('normDistModalTitle').textContent = col + ' ' + SCATTER_COL_NAMES[col];
             var canvas = document.getElementById('normDistModalCanvas');
             canvas.width = 800; canvas.height = 560;
-            renderOneNormDist(canvas, ci, normDistAllRows, normDistCoarseRows, normDistMatchVals, true);
-        }
-
-        function renderTrendAnalysis(allRows, matchVals) {
-            var wrap = document.getElementById('trendAnalysisWrap');
-            var panel = document.getElementById('trendPanel');
-            if (!allRows || allRows.length < 10) { wrap.style.display = 'none'; return; }
-            wrap.style.display = '';
-
-            var mv = matchVals;
-            // Three levels
-            var coarse = allRows.filter(function(r) {
-                return Math.abs(r[2] - mv.L) <= 0.2 && Math.abs(r[4] - mv.U) <= 0.1 && Math.abs(r[6] - mv.X) <= 0.2;
-            });
-            var fine = allRows.filter(function(r) {
-                return Math.abs(r[2] - mv.L) <= 0.1 && Math.abs(r[4] - mv.U) <= 0.05 && Math.abs(r[6] - mv.X) <= 0.1;
-            });
-
-            function countResults(rows) {
-                var up = 0, dn = 0, zou = 0;
-                for (var i = 0; i < rows.length; i++) {
-                    if (rows[i][7] === '上') up++;
-                    else if (rows[i][7] === '下') dn++;
-                    else zou++;
-                }
-                return { up: up, dn: dn, zou: zou, total: rows.length };
-            }
-
-            var levels = [
-                { name: '全部', rows: allRows, c: countResults(allRows) },
-                { name: '初筛', rows: coarse, c: countResults(coarse) },
-                { name: '细筛', rows: fine, c: countResults(fine) }
-            ];
-
-            // Build table
-            var html = '<table class="trend-table"><thead><tr>';
-            html += '<th>层级</th><th>场次</th><th>上盘</th><th>下盘</th><th>走盘</th><th>上盘占比</th><th>比例条</th><th>漂移</th>';
-            html += '</tr></thead><tbody>';
-
-            var prevRatio = null;
-            var ratios = [];
-            for (var i = 0; i < levels.length; i++) {
-                var lv = levels[i];
-                var c = lv.c;
-                var updn = c.up + c.dn;
-                var ratio = updn > 0 ? c.up / updn : 0.5;
-                ratios.push(ratio);
-                var pctUp = (ratio * 100).toFixed(1);
-                var pctDn = ((1 - ratio) * 100).toFixed(1);
-
-                // Drift arrow
-                var drift = '';
-                if (prevRatio !== null && updn >= 3) {
-                    var diff = ratio - prevRatio;
-                    if (diff > 0.02) drift = '<span class="trend-drift up">↑+' + (diff * 100).toFixed(1) + '%</span>';
-                    else if (diff < -0.02) drift = '<span class="trend-drift dn">↓' + (diff * 100).toFixed(1) + '%</span>';
-                    else drift = '<span class="trend-drift flat">→持平</span>';
-                }
-
-                // Bar
-                var barW_up = c.total > 0 ? (c.up / c.total * 100) : 0;
-                var barW_dn = c.total > 0 ? (c.dn / c.total * 100) : 0;
-                var barW_zou = c.total > 0 ? (c.zou / c.total * 100) : 0;
-                var bar = '<div class="trend-bar-wrap">' +
-                    '<div class="trend-bar-up" style="width:' + barW_up + '%"></div>' +
-                    '<div class="trend-bar-dn" style="width:' + barW_dn + '%"></div>' +
-                    '<div class="trend-bar-zou" style="width:' + barW_zou + '%"></div>' +
-                    '</div>';
-
-                html += '<tr>';
-                html += '<td class="level-label">' + lv.name + '</td>';
-                html += '<td>' + c.total + '</td>';
-                html += '<td style="color:#e53935;font-weight:600">' + c.up + '</td>';
-                html += '<td style="color:#4caf50;font-weight:600">' + c.dn + '</td>';
-                html += '<td style="color:#ff9800;font-weight:600">' + c.zou + '</td>';
-                html += '<td><strong>' + pctUp + '%</strong></td>';
-                html += '<td>' + bar + '</td>';
-                html += '<td>' + drift + '</td>';
-                html += '</tr>';
-
-                if (updn >= 3) prevRatio = ratio;
-            }
-            html += '</tbody></table>';
-
-            // Conclusion
-            var allRatio = ratios[0];
-            var coarseRatio = levels[1].c.up + levels[1].c.dn >= 3 ? ratios[1] : null;
-            var fineRatio = levels[2].c.up + levels[2].c.dn >= 3 ? ratios[2] : null;
-
-            // Determine direction and confidence
-            var direction = '';  // '上' or '下'
-            var confidence = '';  // 'strong', 'moderate', 'weak'
-            var reason = '';
-
-            // Check consistency of direction across levels
-            var dirs = [];
-            if (allRatio > 0.5) dirs.push('上'); else if (allRatio < 0.5) dirs.push('下'); else dirs.push('平');
-            if (coarseRatio !== null) {
-                if (coarseRatio > 0.5) dirs.push('上'); else if (coarseRatio < 0.5) dirs.push('下'); else dirs.push('平');
-            }
-            if (fineRatio !== null) {
-                if (fineRatio > 0.5) dirs.push('上'); else if (fineRatio < 0.5) dirs.push('下'); else dirs.push('平');
-            }
-
-            var allSame = dirs.every(function(d) { return d === dirs[0]; });
-            var mainDir = dirs[dirs.length - 1]; // use finest available level
-
-            // Check drift trend
-            var drifts = [];
-            if (coarseRatio !== null) drifts.push(coarseRatio - allRatio);
-            if (fineRatio !== null && coarseRatio !== null) drifts.push(fineRatio - coarseRatio);
-            var consistentDrift = drifts.length >= 2 && ((drifts[0] > 0 && drifts[1] > 0) || (drifts[0] < 0 && drifts[1] < 0));
-            var driftDir = drifts.length > 0 ? (drifts[drifts.length - 1] > 0 ? '上' : '下') : '';
-
-            if (allSame && dirs[0] !== '平') {
-                direction = dirs[0];
-                if (consistentDrift && driftDir === direction) {
-                    confidence = 'strong';
-                    reason = '三级方向一致（' + direction + '），且漂移持续增强';
-                } else {
-                    confidence = 'moderate';
-                    reason = '三级方向一致（' + direction + '），但漂移不连续';
-                }
-            } else if (dirs.length >= 2) {
-                // Not all same
-                if (fineRatio !== null && Math.abs(fineRatio - 0.5) > Math.abs(allRatio - 0.5)) {
-                    direction = fineRatio > 0.5 ? '上' : '下';
-                    confidence = 'weak';
-                    reason = '各级方向不一致，细筛偏向' + direction + '但信号较弱';
-                } else {
-                    direction = allRatio > 0.5 ? '上' : '下';
-                    confidence = 'weak';
-                    reason = '各级方向不一致，全局偏向' + direction + '但筛选后减弱';
-                }
-            } else {
-                direction = allRatio >= 0.5 ? '上' : '下';
-                confidence = 'weak';
-                reason = '数据不足以进行多级分析';
-            }
-
-            var confLabel = confidence === 'strong' ? '🟢 强信号' : confidence === 'moderate' ? '🟡 中等信号' : '🔴 弱信号';
-            var dirColor = direction === '上' ? '#e53935' : '#4caf50';
-
-            html += '<div class="trend-conclusion ' + confidence + '">';
-            html += '<strong>' + confLabel + '</strong> &nbsp; ';
-            html += '趋势方向：<span style="color:' + dirColor + ';font-weight:700;font-size:16px;">' + direction + '盘</span><br>';
-            html += '<span style="color:#666;font-size:13px;">' + reason + '</span>';
-            html += '</div>';
-
-            panel.innerHTML = html;
+            renderOneNormDist(canvas, ci, normDistAllRows, normDistCoarseRows, normDistFineRows, normDistMatchVals, true);
         }
 
         // Close modal on overlay click
