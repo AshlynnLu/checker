@@ -1481,8 +1481,19 @@
 
             rowData.sort(function(a, b) { return a.dist - b.dist; });
 
-            var closestIdx = rowData.length > 0 ? rowData[0].idx : -1;
-            var farthestIdx = rowData.length > 0 ? rowData[rowData.length - 1].idx : -1;
+            // 找出每列距离的最小值和最大值的行索引
+            var nDistCols = SLOPE_PAIRS.length + 1; // 3段 + 综合
+            var minDistIdx = [], maxDistIdx = [];
+            for (var c = 0; c < nDistCols; c++) {
+                var minVal = Infinity, maxVal = -Infinity, minI = -1, maxI = -1;
+                for (var r = 0; r < rowData.length; r++) {
+                    var v = (c < SLOPE_PAIRS.length) ? rowData[r].dists[c] : rowData[r].dist;
+                    if (v < minVal) { minVal = v; minI = r; }
+                    if (v > maxVal) { maxVal = v; maxI = r; }
+                }
+                minDistIdx.push(minI);
+                maxDistIdx.push(maxI);
+            }
 
             var html = '<table style="border-collapse:collapse; width:100%; font-size:13px; background:#fff;">';
             html += '<thead><tr style="background:#f5f5f5;">';
@@ -1513,20 +1524,23 @@
             // 显示所有历史比赛（按距离排序）
             for (var r = 0; r < rowData.length; r++) {
                 var d = rowData[r];
-                var bgColor = '#fff';
-                if (d.idx === closestIdx) bgColor = '#c8e6c9';
-                else if (d.idx === farthestIdx) bgColor = '#ffcdd2';
                 var resColor = SCATTER_RESULT_COLORS[d.result] || '#333';
-                html += '<tr style="background:' + bgColor + ';">';
+                html += '<tr>';
                 html += '<td style="border:1px solid #ddd; padding:4px 8px;">' + (r + 1) + '</td>';
                 html += '<td style="border:1px solid #ddd; padding:4px 8px; color:' + resColor + '; font-weight:bold;">' + d.result + '</td>';
                 for (var s = 0; s < d.slopes.length; s++) {
                     html += '<td style="border:1px solid #ddd; padding:4px 8px; text-align:center;">' + d.slopes[s].toFixed(4) + '</td>';
                 }
                 for (var s = 0; s < d.dists.length; s++) {
-                    html += '<td style="border:1px solid #ddd; padding:4px 8px; text-align:center;">' + d.dists[s].toFixed(4) + '</td>';
+                    var cellBg = '';
+                    if (r === minDistIdx[s]) cellBg = 'background:#c8e6c9;';
+                    else if (r === maxDistIdx[s]) cellBg = 'background:#ffcdd2;';
+                    html += '<td style="border:1px solid #ddd; padding:4px 8px; text-align:center;' + cellBg + '">' + d.dists[s].toFixed(4) + '</td>';
                 }
-                html += '<td style="border:1px solid #ddd; padding:4px 8px; text-align:center;">' + d.dist.toFixed(4) + '</td>';
+                var totalBg = '';
+                if (r === minDistIdx[SLOPE_PAIRS.length]) totalBg = 'background:#c8e6c9;';
+                else if (r === maxDistIdx[SLOPE_PAIRS.length]) totalBg = 'background:#ffcdd2;';
+                html += '<td style="border:1px solid #ddd; padding:4px 8px; text-align:center;' + totalBg + '">' + d.dist.toFixed(4) + '</td>';
                 html += '</tr>';
             }
 
