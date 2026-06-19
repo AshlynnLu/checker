@@ -1617,9 +1617,11 @@
                 fineData = computeNormalCurves(fineRows, ci, xMin, xMax, nSteps);
             }
 
+            var coarseMaxPDF = (coarseData && coarseData.maxPDF > 0.001) ? coarseData.maxPDF : 1;
+
             function valToX(v) { return padLeft + (v - xMin) / (xMax - xMin) * plotW; }
             function pdfToY(pdf) { return padTop + plotH - (pdf / globalMaxPDF) * plotH; }
-            function pdfToYHalf(pdf) { return padTop + plotH - (pdf / globalMaxPDF) * plotH * 0.5; }
+            function pdfToYHalf(pdf) { return padTop + plotH - (pdf / coarseMaxPDF) * plotH * 0.5; }
 
             // X axis
             ctx.strokeStyle = '#ccc';
