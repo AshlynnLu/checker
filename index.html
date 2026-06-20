@@ -710,26 +710,11 @@
                 <canvas id="scatterLineCanvas" style="width:100%; border:1px solid #e0e0e0; border-radius:6px; background:#fafafa;"></canvas>
                 <div id="slopeTableWrap" style="display:none; margin-top:10px;"></div>
             </div>
-            <!-- 正态分布图 -->
+            <!-- 正态分布统计表 -->
             <div id="normalDistWrap" style="display:none; margin-top:18px;">
-                <div style="font-weight:700; font-size:15px; margin-bottom:10px; color:#333;">📈 正态分布分析（全部数据）</div>
-                <div class="normal-dist-grid" id="normalDistGrid"></div>
+                <div id="normalDistTitle" style="font-weight:700; font-size:15px; margin-bottom:10px; color:#333;">📊 正态分布统计</div>
+                <div id="normalDistGrid" style="display:flex; flex-wrap:wrap; gap:12px;"></div>
             </div>
-            <div id="normalDistCoarseWrap" style="display:none; margin-top:18px;">
-                <div id="normalDistCoarseTitle" style="font-weight:700; font-size:15px; margin-bottom:10px; color:#333;">📈 正态分布分析（初筛数据）</div>
-                <div class="normal-dist-grid" id="normalDistCoarseGrid"></div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Normal dist modal -->
-    <div class="scatter-modal-overlay" id="normDistModal">
-        <div class="scatter-modal">
-            <button class="scatter-modal-close" onclick="closeNormDistModal()">&times;</button>
-            <button class="scatter-modal-arrow left" onclick="normDistModalNav(-1)">&#8249;</button>
-            <button class="scatter-modal-arrow right" onclick="normDistModalNav(1)">&#8250;</button>
-            <div class="modal-title" id="normDistModalTitle"></div>
-            <canvas id="normDistModalCanvas" width="600" height="420"></canvas>
         </div>
     </div>
 
@@ -1141,9 +1126,8 @@
                 return Math.abs(r[2] - mv.L) <= 0.1 && Math.abs(r[4] - mv.U) <= 0.05 && Math.abs(r[5] - mv.X) <= 0.1 && Math.abs(r[6] - mv.Y) <= 0.1;
             });
             renderNormalDistCharts(scatterGroupRows, scatterCurrentMatch.vals, coarseForNorm, fineForNorm);
-            var ndTitle = document.querySelector('#normalDistWrap > div:first-child');
-            if (ndTitle) ndTitle.textContent = '📈 正态分布分析（全部 ' + scatterGroupRows.length + '场，初筛 ' + coarseForNorm.length + '场，细筛 ' + fineForNorm.length + '场）';
-            document.getElementById('normalDistCoarseWrap').style.display = 'none';
+            var ndTitle = document.getElementById('normalDistTitle');
+            if (ndTitle) ndTitle.textContent = '📊 正态分布统计（全部 ' + scatterGroupRows.length + '场，初筛 ' + coarseForNorm.length + '场，细筛 ' + fineForNorm.length + '场）';
         }
 
         // 筛选条件: 初筛 L±0.2, U±0.1, X±0.2, Y±0.2; 细筛 L±0.1, U±0.05, X±0.1, Y±0.1
@@ -1555,275 +1539,105 @@
             return Math.exp(-0.5 * z * z) / (sigma * Math.sqrt(2 * Math.PI));
         }
 
-        function computeNormalCurves(rows, ci, xMin, xMax, nSteps) {
+        // 计算每个结果类型的均值和标准差
+        function computeNormStats(rows, ci) {
             var byRes = { '上': [], '下': [], '走': [] };
             for (var i = 0; i < rows.length; i++) {
                 var res = rows[i][7];
-                if (byRes[res]) byRes[res].push(rows[i]);
+                if (byRes[res]) byRes[res].push(rows[i][ci]);
             }
-            var curves = [];
-            var maxPDF = 0;
+            var stats = {};
             var keys = ['上', '下', '走'];
             for (var ri = 0; ri < keys.length; ri++) {
-                var rRows = byRes[keys[ri]];
-                if (rRows.length < 3) { curves.push(null); continue; }
-                var vals = [];
-                for (var j = 0; j < rRows.length; j++) vals.push(rRows[j][ci]);
+                var vals = byRes[keys[ri]];
+                if (vals.length < 1) { stats[keys[ri]] = null; continue; }
                 var mean = 0;
                 for (var j = 0; j < vals.length; j++) mean += vals[j];
                 mean /= vals.length;
                 var variance = 0;
                 for (var j = 0; j < vals.length; j++) variance += (vals[j] - mean) * (vals[j] - mean);
                 variance /= vals.length;
-                var std = Math.sqrt(variance);
-                var points = [];
-                for (var s = 0; s <= nSteps; s++) {
-                    var xv = xMin + (xMax - xMin) * s / nSteps;
-                    var pdf = gaussianPDF(xv, mean, std);
-                    points.push({ x: xv, y: pdf });
-                    if (pdf > maxPDF) maxPDF = pdf;
-                }
-                curves.push({ points: points, mean: mean, std: std, count: rRows.length });
+                stats[keys[ri]] = { mean: mean, std: Math.sqrt(variance), count: vals.length };
             }
-            return { curves: curves, maxPDF: maxPDF };
+            return stats;
         }
 
-        var normDistResultCfg = [
-            { key: '上', color: 'rgba(229,57,53,0.9)' },
-            { key: '下', color: 'rgba(76,175,80,0.9)' },
-            { key: '走', color: 'rgba(255,152,0,0.9)' }
-        ];
-        var normDistCoarseCfg = [
-            { key: '上', color: 'rgba(229,57,53,0.5)' },
-            { key: '下', color: 'rgba(76,175,80,0.5)' },
-            { key: '走', color: 'rgba(255,152,0,0.5)' }
-        ];
-
-        // Store data for modal re-render
-        var normDistAllRows = null;
-        var normDistCoarseRows = null;
-        var normDistFineRows = null;
-        var normDistMatchVals = null;
-        var normDistModalIdx = 0;
-
-        function renderOneNormDist(canvas, ci, allRows, coarseRows, fineRows, matchVals, isLarge) {
-            var col = SCATTER_COLS[ci];
-            var range = NORMDIST_FIXED_RANGES[col];
-            var xMin = range[0], xMax = range[1];
-            var userVal = matchVals[col];
-            var nSteps = 200;
-
-            var W = canvas.width, H = canvas.height;
-            var ctx = canvas.getContext('2d');
-            ctx.clearRect(0, 0, W, H);
-
-            var padTop = isLarge ? 30 : 20;
-            var padBot = isLarge ? 44 : 36;
-            var padLeft = isLarge ? 15 : 10;
-            var padRight = isLarge ? 15 : 10;
-            var plotW = W - padLeft - padRight;
-            var plotH = H - padTop - padBot;
-
-            ctx.fillStyle = '#fafafa';
-            ctx.fillRect(0, 0, W, H);
-            ctx.strokeStyle = '#e0e0e0';
-            ctx.strokeRect(0, 0, W, H);
-
-            var fullData = computeNormalCurves(allRows, ci, xMin, xMax, nSteps);
-            var globalMaxPDF = fullData.maxPDF;
-            if (globalMaxPDF < 0.001) globalMaxPDF = 1;
-
-            var coarseData = null;
-            if (coarseRows && coarseRows.length >= 3) {
-                coarseData = computeNormalCurves(coarseRows, ci, xMin, xMax, nSteps);
+        // 计算用户值在各分布中的相对位置（峰值百分比）
+        function computeNormPercent(stats, userVal) {
+            var result = {};
+            var keys = ['上', '下', '走'];
+            for (var ri = 0; ri < keys.length; ri++) {
+                var s = stats[keys[ri]];
+                if (!s || s.count < 1) { result[keys[ri]] = 0; continue; }
+                // PDF(userVal) / PDF(mean) = exp(-0.5 * z^2)，即相对于峰值的百分比
+                var z = (userVal - s.mean) / (s.std < 0.001 ? 0.001 : s.std);
+                result[keys[ri]] = Math.round(Math.exp(-0.5 * z * z) * 100);
             }
-
-            var fineData = null;
-            if (fineRows && fineRows.length >= 3) {
-                fineData = computeNormalCurves(fineRows, ci, xMin, xMax, nSteps);
-            }
-
-            var coarseMaxPDF = (coarseData && coarseData.maxPDF > 0.001) ? coarseData.maxPDF : 1;
-
-            function valToX(v) { return padLeft + (v - xMin) / (xMax - xMin) * plotW; }
-            function pdfToY(pdf) { return padTop + plotH - (pdf / globalMaxPDF) * plotH; }
-            function pdfToYHalf(pdf) { return padTop + plotH - (pdf / coarseMaxPDF) * plotH * 0.5; }
-
-            // X axis
-            ctx.strokeStyle = '#ccc';
-            ctx.beginPath();
-            ctx.moveTo(padLeft, padTop + plotH);
-            ctx.lineTo(padLeft + plotW, padTop + plotH);
-            ctx.stroke();
-
-            var fontSize = isLarge ? 13 : 10;
-            ctx.fillStyle = '#999';
-            ctx.font = fontSize + 'px sans-serif';
-            ctx.textAlign = 'center';
-            var nTicks = isLarge ? 8 : 5;
-            for (var t = 0; t <= nTicks; t++) {
-                var tv = xMin + (xMax - xMin) * t / nTicks;
-                var tx = valToX(tv);
-                ctx.fillText(tv.toFixed(2), tx, H - (isLarge ? 12 : 8));
-                ctx.strokeStyle = '#eee';
-                ctx.beginPath();
-                ctx.moveTo(tx, padTop);
-                ctx.lineTo(tx, padTop + plotH);
-                ctx.stroke();
-            }
-
-            // Full curves (solid)
-            var lineW = isLarge ? 3 : 2;
-            for (var ri = 0; ri < normDistResultCfg.length; ri++) {
-                if (!fullData.curves[ri]) continue;
-                var pts = fullData.curves[ri].points;
-                ctx.beginPath();
-                for (var s = 0; s < pts.length; s++) {
-                    var px = valToX(pts[s].x);
-                    var py = pdfToY(pts[s].y);
-                    if (s === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
-                }
-                ctx.strokeStyle = normDistResultCfg[ri].color;
-                ctx.lineWidth = lineW;
-                ctx.stroke();
-                ctx.lineWidth = 1;
-            }
-
-            // Coarse curves (dashed, half height)
-            if (coarseData) {
-                ctx.setLineDash([isLarge ? 6 : 4, isLarge ? 4 : 3]);
-                for (var ri = 0; ri < normDistCoarseCfg.length; ri++) {
-                    if (!coarseData.curves[ri]) continue;
-                    var pts = coarseData.curves[ri].points;
-                    ctx.beginPath();
-                    for (var s = 0; s < pts.length; s++) {
-                        var px = valToX(pts[s].x);
-                        var py = pdfToYHalf(pts[s].y);
-                        if (s === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
-                    }
-                    ctx.strokeStyle = normDistCoarseCfg[ri].color;
-                    ctx.lineWidth = lineW;
-                    ctx.stroke();
-                    ctx.lineWidth = 1;
-                }
-                ctx.setLineDash([]);
-            }
-
-            // Fine filter: blue vertical mark lines at curve peaks
-            if (fineData) {
-                var fineColors = ['rgba(229,57,53,0.8)', 'rgba(76,175,80,0.8)', 'rgba(255,152,0,0.8)'];
-                for (var ri = 0; ri < fineData.curves.length; ri++) {
-                    if (!fineData.curves[ri]) continue;
-                    var peakX = fineData.curves[ri].mean;
-                    var px = valToX(peakX);
-                    ctx.strokeStyle = fineColors[ri] || 'rgba(33,150,243,0.7)';
-                    ctx.lineWidth = isLarge ? 3 : 2;
-                    ctx.setLineDash([]);
-                    ctx.beginPath();
-                    ctx.moveTo(px, padTop);
-                    ctx.lineTo(px, padTop + plotH);
-                    ctx.stroke();
-                    ctx.lineWidth = 1;
-                    // Label
-                    ctx.fillStyle = fineColors[ri] || 'rgba(33,150,243,0.7)';
-                    ctx.font = 'bold ' + (isLarge ? 11 : 9) + 'px sans-serif';
-                    ctx.textAlign = 'center';
-                    var labelY = padTop + (isLarge ? 16 : 12) + ri * (isLarge ? 14 : 10);
-                    ctx.fillText('细' + normDistResultCfg[ri].key + ' ' + peakX.toFixed(2), px, labelY);
-                }
-            }
-
-            // User value line
-            var ux = valToX(Math.max(xMin, Math.min(xMax, userVal)));
-            ctx.strokeStyle = '#000';
-            ctx.lineWidth = isLarge ? 3 : 2;
-            ctx.setLineDash([6, 3]);
-            ctx.beginPath();
-            ctx.moveTo(ux, padTop);
-            ctx.lineTo(ux, padTop + plotH);
-            ctx.stroke();
-            ctx.setLineDash([]);
-            ctx.lineWidth = 1;
-
-            ctx.fillStyle = '#000';
-            ctx.font = 'bold ' + (isLarge ? 14 : 11) + 'px sans-serif';
-            ctx.textAlign = 'center';
-            ctx.fillText(userVal.toFixed(2), ux, padTop - (isLarge ? 8 : 5));
-
-            // Legend
-            var legFont = isLarge ? 13 : 10;
-            ctx.font = legFont + 'px sans-serif';
-            ctx.textAlign = 'right';
-            var ly = padTop + (isLarge ? 16 : 12);
-            for (var ri = 0; ri < normDistResultCfg.length; ri++) {
-                if (!fullData.curves[ri]) continue;
-                var txt = normDistResultCfg[ri].key + ' ' + fullData.curves[ri].count;
-                if (coarseData && coarseData.curves[ri]) txt += '/' + coarseData.curves[ri].count;
-                txt += '场';
-                ctx.fillStyle = normDistResultCfg[ri].color;
-                ctx.fillText(txt, W - padRight - 4, ly);
-                ly += (isLarge ? 18 : 14);
-            }
-            if (coarseData || fineData) {
-                ctx.fillStyle = '#999';
-                ctx.font = (isLarge ? 11 : 9) + 'px sans-serif';
-                ctx.fillText('实线=全部 虚线=初筛 蓝线=细筛峰值', W - padRight - 4, ly);
-            }
+            return result;
         }
 
         function renderNormalDistCharts(allRows, matchVals, coarseRows, fineRows) {
             var wrap = document.getElementById('normalDistWrap');
             var grid = document.getElementById('normalDistGrid');
-            if (!allRows || allRows.length < 10) { wrap.style.display = 'none'; return; }
+            if (!allRows || allRows.length < 3) { wrap.style.display = 'none'; return; }
             wrap.style.display = '';
             grid.innerHTML = '';
 
-            normDistAllRows = allRows;
-            normDistCoarseRows = coarseRows;
-            normDistFineRows = fineRows || null;
-            normDistMatchVals = matchVals;
+            var keys = ['上', '下', '走'];
+            var keyColors = { '上': '#e53935', '下': '#4caf50', '走': '#ff9800' };
 
             for (var ci = 0; ci < SCATTER_COLS.length; ci++) {
                 var col = SCATTER_COLS[ci];
-                var box = document.createElement('div');
-                box.className = 'normal-dist-box';
-                box.style.cursor = 'pointer';
-                box.onclick = (function(idx) { return function() { openNormDistModal(idx); }; })(ci);
-                var label = document.createElement('div');
-                label.className = 'chart-label';
-                label.textContent = col + ' ' + SCATTER_COL_NAMES[col];
-                box.appendChild(label);
+                var userVal = matchVals[col];
 
-                var canvas = document.createElement('canvas');
-                canvas.width = 400;
-                canvas.height = 280;
-                box.appendChild(canvas);
-                grid.appendChild(box);
+                var fullStats = computeNormStats(allRows, ci);
+                var coarseStats = (coarseRows && coarseRows.length >= 1) ? computeNormStats(coarseRows, ci) : null;
+                var fineStats = (fineRows && fineRows.length >= 1) ? computeNormStats(fineRows, ci) : null;
 
-                renderOneNormDist(canvas, ci, allRows, coarseRows, normDistFineRows, matchVals, false);
+                var fullPct = computeNormPercent(fullStats, userVal);
+                var coarsePct = coarseStats ? computeNormPercent(coarseStats, userVal) : null;
+                var finePct = fineStats ? computeNormPercent(fineStats, userVal) : null;
+
+                function cmpLabel(a, b) {
+                    if (a === 0 && b === 0) return '<span style="color:#999;">无</span>';
+                    if (b > a) return '<span style="color:#e53935; font-weight:bold;">增加</span>';
+                    if (b < a) return '<span style="color:#4caf50; font-weight:bold;">减少</span>';
+                    return '<span style="color:#999;">持平</span>';
+                }
+
+                var html = '<div style="background:#fffde7; border:1px solid #e0e0e0; border-radius:6px; padding:10px; min-width:280px; flex:1;">';
+                html += '<div style="font-weight:bold; font-size:13px; margin-bottom:6px; color:#333;">' + col + ' ' + SCATTER_COL_NAMES[col] + '</div>';
+                html += '<table style="border-collapse:collapse; width:100%; font-size:12px;">';
+                html += '<thead><tr style="background:#f5f5f5;">';
+                html += '<th style="border:1px solid #ddd; padding:4px 6px;"></th>';
+                html += '<th style="border:1px solid #ddd; padding:4px 6px;">全数据</th>';
+                html += '<th style="border:1px solid #ddd; padding:4px 6px;">初筛</th>';
+                html += '<th style="border:1px solid #ddd; padding:4px 6px;">细筛</th>';
+                html += '<th style="border:1px solid #ddd; padding:4px 6px;">全:初</th>';
+                html += '<th style="border:1px solid #ddd; padding:4px 6px;">全:细</th>';
+                html += '<th style="border:1px solid #ddd; padding:4px 6px;">初:细</th>';
+                html += '</tr></thead><tbody>';
+
+                for (var ki = 0; ki < keys.length; ki++) {
+                    var k = keys[ki];
+                    var fv = fullPct[k];
+                    var cv = coarsePct ? coarsePct[k] : 0;
+                    var fiv = finePct ? finePct[k] : 0;
+
+                    html += '<tr>';
+                    html += '<td style="border:1px solid #ddd; padding:4px 6px; font-weight:bold; color:' + keyColors[k] + ';">' + k + '盘</td>';
+                    html += '<td style="border:1px solid #ddd; padding:4px 6px; text-align:center;">' + (fv > 0 ? fv + '%' : '0') + '</td>';
+                    html += '<td style="border:1px solid #ddd; padding:4px 6px; text-align:center;">' + (coarsePct ? (cv > 0 ? cv + '%' : '0') : '—') + '</td>';
+                    html += '<td style="border:1px solid #ddd; padding:4px 6px; text-align:center;">' + (finePct ? (fiv > 0 ? fiv + '%' : '0') : '—') + '</td>';
+                    html += '<td style="border:1px solid #ddd; padding:4px 6px; text-align:center;">' + (coarsePct ? cmpLabel(fv, cv) : '—') + '</td>';
+                    html += '<td style="border:1px solid #ddd; padding:4px 6px; text-align:center;">' + (finePct ? cmpLabel(fv, fiv) : '—') + '</td>';
+                    html += '<td style="border:1px solid #ddd; padding:4px 6px; text-align:center;">' + (coarsePct && finePct ? cmpLabel(cv, fiv) : '—') + '</td>';
+                    html += '</tr>';
+                }
+
+                html += '</tbody></table></div>';
+                grid.innerHTML += html;
             }
-        }
-
-        function openNormDistModal(idx) {
-            if (!normDistAllRows || !normDistMatchVals) return;
-            normDistModalIdx = idx;
-            renderNormDistModalChart();
-            document.getElementById('normDistModal').classList.add('show');
-        }
-        function closeNormDistModal() {
-            document.getElementById('normDistModal').classList.remove('show');
-        }
-        function normDistModalNav(dir) {
-            normDistModalIdx = (normDistModalIdx + dir + SCATTER_COLS.length) % SCATTER_COLS.length;
-            renderNormDistModalChart();
-        }
-        function renderNormDistModalChart() {
-            var ci = normDistModalIdx;
-            var col = SCATTER_COLS[ci];
-            document.getElementById('normDistModalTitle').textContent = col + ' ' + SCATTER_COL_NAMES[col];
-            var canvas = document.getElementById('normDistModalCanvas');
-            canvas.width = 800; canvas.height = 560;
-            renderOneNormDist(canvas, ci, normDistAllRows, normDistCoarseRows, normDistFineRows, normDistMatchVals, true);
         }
 
         // Close modal on overlay click
@@ -1831,18 +1645,8 @@
             document.getElementById('scatterModal').addEventListener('click', function(e) {
                 if (e.target === this) closeScatterModal();
             });
-            document.getElementById('normDistModal').addEventListener('click', function(e) {
-                if (e.target === this) closeNormDistModal();
-            });
             document.addEventListener('keydown', function(e) {
                 var scatterM = document.getElementById('scatterModal');
-                var normM = document.getElementById('normDistModal');
-                if (normM.classList.contains('show')) {
-                    if (e.key === 'Escape') closeNormDistModal();
-                    if (e.key === 'ArrowLeft') normDistModalNav(-1);
-                    if (e.key === 'ArrowRight') normDistModalNav(1);
-                    return;
-                }
                 if (scatterM.classList.contains('show')) {
                     if (e.key === 'Escape') closeScatterModal();
                     if (e.key === 'ArrowLeft') scatterModalNav(-1);
