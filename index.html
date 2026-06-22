@@ -694,6 +694,7 @@
                     <button class="btn-scatter-add" onclick="scatterAdd()">添加比赛（使用上方数据）</button>
                     <button class="btn-scatter-filter" onclick="scatterFilter('coarse')" id="btnScatterCoarse" style="display:none;">初筛</button>
                     <button class="btn-scatter-filter" onclick="scatterFilter('fine')" id="btnScatterFine" style="display:none;">细筛</button>
+                    <button class="btn-scatter-filter" onclick="showSlopeSummary()" id="btnSlopeSummary" style="display:none;">斜率统计</button>
                     <button class="btn-scatter-reset" onclick="scatterReset()" id="btnScatterReset" style="display:none;">重置</button>
                     <span class="scatter-morph-info" id="scatterMorphInfo"></span>
                 </div>
@@ -709,6 +710,7 @@
                 <div id="lineChartTitle" style="font-weight:700; font-size:14px; margin-bottom:6px; color:#333;">折线总览</div>
                 <canvas id="scatterLineCanvas" style="width:100%; border:1px solid #e0e0e0; border-radius:6px; background:#fafafa;"></canvas>
                 <div id="slopeTableWrap" style="display:none; margin-top:10px;"></div>
+                <div id="slopeSummaryWrap" style="display:none; margin-top:10px;"></div>
             </div>
             <!-- 正态分布统计表 -->
             <div id="normalDistWrap" style="display:none; margin-top:18px;">
@@ -1114,6 +1116,7 @@
             document.getElementById('scatterLegend').style.display = 'flex';
             document.getElementById('btnScatterCoarse').style.display = '';
             document.getElementById('btnScatterFine').style.display = '';
+            document.getElementById('btnSlopeSummary').style.display = '';
             document.getElementById('btnScatterReset').style.display = '';
 
             drawScatterCharts(scatterGroupRows, scatterCurrentMatch.vals, false);
@@ -1465,18 +1468,18 @@
 
             rowData.sort(function(a, b) { return a.dist - b.dist; });
 
-            // 找出每列距离的最小值和最大值的行索引
+            // 找出每列距离的最小值和最大值
             var nDistCols = SLOPE_PAIRS.length + 1; // 3段 + 综合
-            var minDistIdx = [], maxDistIdx = [];
+            var minDistVal = [], maxDistVal = [];
             for (var c = 0; c < nDistCols; c++) {
-                var minVal = Infinity, maxVal = -Infinity, minI = -1, maxI = -1;
+                var minV = Infinity, maxV = -Infinity;
                 for (var r = 0; r < rowData.length; r++) {
                     var v = (c < SLOPE_PAIRS.length) ? rowData[r].dists[c] : rowData[r].dist;
-                    if (v < minVal) { minVal = v; minI = r; }
-                    if (v > maxVal) { maxVal = v; maxI = r; }
+                    if (v < minV) minV = v;
+                    if (v > maxV) maxV = v;
                 }
-                minDistIdx.push(minI);
-                maxDistIdx.push(maxI);
+                minDistVal.push(minV);
+                maxDistVal.push(maxV);
             }
 
             var html = '<table style="border-collapse:collapse; width:100%; font-size:13px; background:#fff;">';
@@ -1516,21 +1519,151 @@
                     html += '<td style="border:1px solid #ddd; padding:4px 8px; text-align:center;">' + d.slopes[s].toFixed(4) + '</td>';
                 }
                 for (var s = 0; s < d.dists.length; s++) {
+                    var v = d.dists[s];
                     var cellBg = '';
-                    if (r === minDistIdx[s]) cellBg = 'background:#c8e6c9;';
-                    else if (r === maxDistIdx[s]) cellBg = 'background:#ffcdd2;';
-                    html += '<td style="border:1px solid #ddd; padding:4px 8px; text-align:center;' + cellBg + '">' + d.dists[s].toFixed(4) + '</td>';
+                    if (minDistVal[s] < maxDistVal[s]) {
+                        if (v === minDistVal[s]) cellBg = 'background:#c8e6c9;';
+                        else if (v === maxDistVal[s]) cellBg = 'background:#ffcdd2;';
+                    }
+                    html += '<td style="border:1px solid #ddd; padding:4px 8px; text-align:center;' + cellBg + '">' + v.toFixed(4) + '</td>';
                 }
+                var tv = d.dist;
                 var totalBg = '';
-                if (r === minDistIdx[SLOPE_PAIRS.length]) totalBg = 'background:#c8e6c9;';
-                else if (r === maxDistIdx[SLOPE_PAIRS.length]) totalBg = 'background:#ffcdd2;';
-                html += '<td style="border:1px solid #ddd; padding:4px 8px; text-align:center;' + totalBg + '">' + d.dist.toFixed(4) + '</td>';
+                if (minDistVal[SLOPE_PAIRS.length] < maxDistVal[SLOPE_PAIRS.length]) {
+                    if (tv === minDistVal[SLOPE_PAIRS.length]) totalBg = 'background:#c8e6c9;';
+                    else if (tv === maxDistVal[SLOPE_PAIRS.length]) totalBg = 'background:#ffcdd2;';
+                }
+                html += '<td style="border:1px solid #ddd; padding:4px 8px; text-align:center;' + totalBg + '">' + tv.toFixed(4) + '</td>';
                 html += '</tr>';
             }
 
             html += '</tbody></table>';
-            html += '<div style="font-size:11px; color:#888; margin-top:4px;">绿色=最接近当前比赛斜率 红色=最远离当前比赛斜率</div>';
+            html += '<div style="font-size:11px; color:#888; margin-top:4px;">绿色=最接近当前比赛斜率 红色=最远离当前比赛斜率（相同数值全部标注）</div>';
             wrap.innerHTML = html;
+        }
+
+        // 斜率远近结果统计
+        function computeSlopeSummaryForRows(rows, matchVals) {
+            if (!rows || rows.length === 0) return null;
+            var cols = SCATTER_COLS;
+            var userSlopes = SLOPE_PAIRS.map(function(sp) {
+                return matchVals[cols[sp.b]] - matchVals[cols[sp.a]];
+            });
+            // 对每个斜率段+综合，找最近和最远的结果类型
+            var nCols = SLOPE_PAIRS.length + 1;
+            var result = { near: [], far: [] };
+            // 先计算每场的各段距离和综合距离
+            var rowDists = [];
+            for (var i = 0; i < rows.length; i++) {
+                var dists = [];
+                var distSq = 0;
+                for (var s = 0; s < SLOPE_PAIRS.length; s++) {
+                    var slope = rows[i][SLOPE_PAIRS[s].b] - rows[i][SLOPE_PAIRS[s].a];
+                    var d = Math.abs(slope - userSlopes[s]);
+                    dists.push(d);
+                    distSq += d * d;
+                }
+                dists.push(Math.sqrt(distSq)); // 综合
+                rowDists.push({ dists: dists, result: rows[i][7] });
+            }
+            for (var c = 0; c < nCols; c++) {
+                var minV = Infinity, maxV = -Infinity;
+                for (var i = 0; i < rowDists.length; i++) {
+                    if (rowDists[i].dists[c] < minV) minV = rowDists[i].dists[c];
+                    if (rowDists[i].dists[c] > maxV) maxV = rowDists[i].dists[c];
+                }
+                var nearSet = {}, farSet = {};
+                for (var i = 0; i < rowDists.length; i++) {
+                    if (rowDists[i].dists[c] === minV) nearSet[rowDists[i].result] = true;
+                    if (rowDists[i].dists[c] === maxV) farSet[rowDists[i].result] = true;
+                }
+                result.near.push(nearSet);
+                result.far.push(farSet);
+            }
+            return result;
+        }
+
+        function formatResultSet(set) {
+            if (!set) return '0';
+            var keys = [];
+            if (set['上']) keys.push('<span style="color:#e53935;">上</span>');
+            if (set['下']) keys.push('<span style="color:#4caf50;">下</span>');
+            if (set['走']) keys.push('<span style="color:#ff9800;">走</span>');
+            return keys.length > 0 ? keys.join('') : '0';
+        }
+
+        function showSlopeSummary() {
+            if (!scatterGroupRows || !scatterCurrentMatch) return;
+            var wrap = document.getElementById('slopeSummaryWrap');
+            var mv = scatterCurrentMatch.vals;
+
+            // 全数据
+            var fullSummary = computeSlopeSummaryForRows(scatterGroupRows, mv);
+            // 初筛
+            var coarseRows = scatterGroupRows.filter(function(r) {
+                return Math.abs(r[2] - mv.L) <= 0.2 && Math.abs(r[4] - mv.U) <= 0.1 && Math.abs(r[5] - mv.X) <= 0.2 && Math.abs(r[6] - mv.Y) <= 0.2;
+            });
+            var coarseSummary = coarseRows.length > 0 ? computeSlopeSummaryForRows(coarseRows, mv) : null;
+            // 细筛
+            var fineRows = scatterGroupRows.filter(function(r) {
+                return Math.abs(r[2] - mv.L) <= 0.1 && Math.abs(r[4] - mv.U) <= 0.05 && Math.abs(r[5] - mv.X) <= 0.1 && Math.abs(r[6] - mv.Y) <= 0.1;
+            });
+            var fineSummary = fineRows.length > 0 ? computeSlopeSummaryForRows(fineRows, mv) : null;
+
+            var distLabels = SLOPE_PAIRS.map(function(sp) { return sp.name; });
+            distLabels.push('综合');
+
+            var html = '<div style="font-weight:700; font-size:14px; margin-bottom:6px; color:#333;">斜率远近结果统计</div>';
+            html += '<table style="border-collapse:collapse; width:100%; font-size:13px; background:#fff;">';
+            html += '<thead>';
+            // 第一行：大类标题
+            html += '<tr style="background:#f5f5f5;">';
+            html += '<th style="border:1px solid #ddd; padding:6px 8px;" rowspan="2"></th>';
+            html += '<th style="border:1px solid #ddd; padding:6px 8px; text-align:center;" colspan="' + distLabels.length + '">全数据 (' + scatterGroupRows.length + '场)</th>';
+            html += '<th style="border:1px solid #ddd; padding:6px 8px; text-align:center;" colspan="' + distLabels.length + '">初筛 (' + coarseRows.length + '场)</th>';
+            html += '<th style="border:1px solid #ddd; padding:6px 8px; text-align:center;" colspan="' + distLabels.length + '">细筛 (' + fineRows.length + '场)</th>';
+            html += '</tr>';
+            // 第二行：各段距离名
+            html += '<tr style="background:#f5f5f5;">';
+            for (var g = 0; g < 3; g++) {
+                for (var c = 0; c < distLabels.length; c++) {
+                    html += '<th style="border:1px solid #ddd; padding:4px 6px; font-size:11px; text-align:center;">' + distLabels[c] + '</th>';
+                }
+            }
+            html += '</tr></thead><tbody>';
+
+            // 近距离行
+            html += '<tr>';
+            html += '<td style="border:1px solid #ddd; padding:4px 8px; font-weight:bold; background:#e8f5e9;">近距离</td>';
+            for (var c = 0; c < distLabels.length; c++) {
+                html += '<td style="border:1px solid #ddd; padding:4px 8px; text-align:center;">' + (fullSummary ? formatResultSet(fullSummary.near[c]) : '0') + '</td>';
+            }
+            for (var c = 0; c < distLabels.length; c++) {
+                html += '<td style="border:1px solid #ddd; padding:4px 8px; text-align:center;">' + (coarseSummary ? formatResultSet(coarseSummary.near[c]) : '0') + '</td>';
+            }
+            for (var c = 0; c < distLabels.length; c++) {
+                html += '<td style="border:1px solid #ddd; padding:4px 8px; text-align:center;">' + (fineSummary ? formatResultSet(fineSummary.near[c]) : '0') + '</td>';
+            }
+            html += '</tr>';
+
+            // 远距离行
+            html += '<tr>';
+            html += '<td style="border:1px solid #ddd; padding:4px 8px; font-weight:bold; background:#ffebee;">远距离</td>';
+            for (var c = 0; c < distLabels.length; c++) {
+                html += '<td style="border:1px solid #ddd; padding:4px 8px; text-align:center;">' + (fullSummary ? formatResultSet(fullSummary.far[c]) : '0') + '</td>';
+            }
+            for (var c = 0; c < distLabels.length; c++) {
+                html += '<td style="border:1px solid #ddd; padding:4px 8px; text-align:center;">' + (coarseSummary ? formatResultSet(coarseSummary.far[c]) : '0') + '</td>';
+            }
+            for (var c = 0; c < distLabels.length; c++) {
+                html += '<td style="border:1px solid #ddd; padding:4px 8px; text-align:center;">' + (fineSummary ? formatResultSet(fineSummary.far[c]) : '0') + '</td>';
+            }
+            html += '</tr>';
+
+            html += '</tbody></table>';
+            html += '<div style="font-size:11px; color:#888; margin-top:4px;">显示斜率距离最近/最远的历史比赛结果类型（上/下/走），0=无筛选结果</div>';
+            wrap.innerHTML = html;
+            wrap.style.display = '';
         }
 
         function gaussianPDF(x, mu, sigma) {
