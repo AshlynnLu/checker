@@ -608,6 +608,7 @@ def _export_scatter_data(base_rows: List[Dict[str, Any]], out_path: str) -> None
     格式紧凑：每组为 { cols: [...], rows: [[v1,v2,...,result], ...] }
     """
     SCATTER_COLS = ["E", "G", "L", "P", "U", "X", "Y"]
+    EXTRA_COLS = ["I", "O", "Q"]  # 正态分布统计用的额外列
     buckets: Dict[str, List[List[Any]]] = defaultdict(list)
 
     for row in base_rows:
@@ -623,11 +624,15 @@ def _export_scatter_data(base_rows: List[Dict[str, Any]], out_path: str) -> None
         for col in SCATTER_COLS:
             v = row.get(col)
             vals.append(v if v is not None else None)
+        for col in EXTRA_COLS:
+            v = row.get(col)
+            vals.append(v if v is not None else None)
         vals.append(row.get("result", ""))
         buckets[key].append(vals)
 
     scatter = {
         "cols": SCATTER_COLS,
+        "extra_cols": EXTRA_COLS,
         "groups": buckets,
     }
     with open(out_path, "w", encoding="utf-8") as f:

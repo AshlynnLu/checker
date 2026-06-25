@@ -706,12 +706,8 @@
                 <span class="scatter-legend-item"><span class="scatter-legend-dot" style="background:#2196f3;width:14px;height:14px;"></span> 未赛（当前输入）</span>
             </div>
             <div class="scatter-charts-wrap" id="scatterChartsWrap"></div>
-            <div id="scatterLineChartWrap" style="display:none; margin-top:18px;">
-                <div id="lineChartTitle" style="font-weight:700; font-size:14px; margin-bottom:6px; color:#333;">折线总览</div>
-                <canvas id="scatterLineCanvas" style="width:100%; border:1px solid #e0e0e0; border-radius:6px; background:#fafafa;"></canvas>
-                <div id="slopeTableWrap" style="display:none; margin-top:10px;"></div>
-                <div id="slopeSummaryWrap" style="display:none; margin-top:10px;"></div>
-            </div>
+            <div id="slopeTableWrap" style="display:none; margin-top:18px;"></div>
+            <div id="slopeSummaryWrap" style="display:none; margin-top:10px;"></div>
             <!-- 正态分布统计表 -->
             <div id="normalDistWrap" style="display:none; margin-top:18px;">
                 <div id="normalDistTitle" style="font-weight:700; font-size:15px; margin-bottom:10px; color:#333;">📊 正态分布统计</div>
@@ -1051,8 +1047,14 @@
         let scatterFiltered = null;
 
         const SCATTER_COLS = ['E','G','L','P','U','X','Y'];
-        const SCATTER_COL_NAMES = {E:"澳上水", G:"马上水", L:"澳平", P:"马平", U:"主差", X:"澳平客差", Y:"马平客差"};
+        const SCATTER_COL_NAMES = {E:"澳上水", G:"马上水", L:"澳平", P:"马平", U:"主差", X:"澳平客差", Y:"马平客差", I:"水差", O:"马主", Q:"马客"};
         const SCATTER_RESULT_COLORS = {"上":"#e53935", "下":"#4caf50", "走":"#ff9800"};
+        const RESULT_IDX = 10; // result在每行数据中的索引
+        // 正态分布统计用的列定义：列名 -> 行数据中的索引
+        const NORMDIST_COLS = [
+            {col: 'I', idx: 7}, {col: 'O', idx: 8}, {col: 'P', idx: 3},
+            {col: 'Q', idx: 9}, {col: 'X', idx: 5}, {col: 'Y', idx: 6}
+        ];
 
         async function loadScatterData() {
             if (scatterDataCache) return scatterDataCache;
@@ -1095,6 +1097,12 @@
             for (const c of SCATTER_COLS) {
                 vals[c] = parseFloat(data[c]);
                 if (isNaN(vals[c])) { alert('列 ' + c + ' 数据无效'); return; }
+            }
+            // 正态分布统计额外列
+            for (const nd of NORMDIST_COLS) {
+                if (vals[nd.col] === undefined) {
+                    vals[nd.col] = parseFloat(data[nd.col]);
+                }
             }
 
             scatterCurrentMatch = { B, D, F, vals };
@@ -1196,7 +1204,7 @@
                 renderScatterCanvas(canvas, ci, rows, matchVals, false);
             }
 
-            renderLineChart(rows, matchVals, filterMode);
+            renderSlopeTable(rows, matchVals);
         }
 
         function renderScatterCanvas(canvas, ci, rows, matchVals, isLarge) {
@@ -1251,16 +1259,16 @@
 
             // Sort rows: draw 上 first, then 下, then 走 last (so 走 visible on top)
             const drawOrder = [
-                ...rows.map((r, i) => ({i, r})).filter(x => x.r[7] === '上'),
-                ...rows.map((r, i) => ({i, r})).filter(x => x.r[7] === '下'),
-                ...rows.map((r, i) => ({i, r})).filter(x => x.r[7] === '走'),
+                ...rows.map((r, i) => ({i, r})).filter(x => x.r[RESULT_IDX] === '上'),
+                ...rows.map((r, i) => ({i, r})).filter(x => x.r[RESULT_IDX] === '下'),
+                ...rows.map((r, i) => ({i, r})).filter(x => x.r[RESULT_IDX] === '走'),
             ];
 
             const dotR = isLarge ? 5 : 3;
             const n = rows.length;
             for (const item of drawOrder) {
                 const v = item.r[ci];
-                const result = item.r[7];
+                const result = item.r[RESULT_IDX];
                 const y = valToY(v);
                 // Spread dots horizontally using original index
                 const x = padLeft + 8 + (plotW - 16) * ((item.i + 0.5) / Math.max(n, 1));
@@ -1319,125 +1327,7 @@
         }
 
         // 固定纵坐标范围
-        const NORMDIST_FIXED_RANGES = {
-            E: [0.5, 1.3], G: [0.5, 1.3], L: [2.4, 5.5], P: [2.4, 5.5],
-            U: [-0.35, 0.25], X: [-5, 1.7], Y: [-5, 1.7]
-        };
         const SLOPE_PAIRS = [{a:0, b:1, name:'E→G'}, {a:2, b:3, name:'L→P'}, {a:5, b:6, name:'X→Y'}];
-
-        function renderLineChart(rows, matchVals, filterMode) {
-            const wrap = document.getElementById('scatterLineChartWrap');
-            const canvas = document.getElementById('scatterLineCanvas');
-            if (!rows || rows.length === 0) { wrap.style.display = 'none'; return; }
-            wrap.style.display = '';
-            var titleLabel = '折线总览';
-            if (filterMode) titleLabel += '（' + (filterMode === 'coarse' ? '初筛' : '细筛') + ' ' + rows.length + '场）';
-            else titleLabel += '（全部 ' + rows.length + '场）';
-            document.getElementById('lineChartTitle').textContent = titleLabel;
-
-            const cols = SCATTER_COLS;
-            const nCols = cols.length;
-
-            // 自缩放纵坐标：从数据中计算 min-0.1 / max+0.1
-            const mins = [], maxs = [];
-            for (let ci = 0; ci < nCols; ci++) {
-                let lo = Infinity, hi = -Infinity;
-                for (const row of rows) {
-                    if (row[ci] < lo) lo = row[ci];
-                    if (row[ci] > hi) hi = row[ci];
-                }
-                const mv = matchVals[cols[ci]];
-                if (mv < lo) lo = mv;
-                if (mv > hi) hi = mv;
-                mins.push(lo - 0.1);
-                maxs.push(hi + 0.1);
-            }
-
-            const W = 1200, H = 500;
-            canvas.width = W; canvas.height = H;
-            const ctx = canvas.getContext('2d');
-            ctx.clearRect(0, 0, W, H);
-
-            const padTop = 30, padBot = 40, padLeft = 60, padRight = 30;
-            const plotW = W - padLeft - padRight;
-            const plotH = H - padTop - padBot;
-
-            function colX(ci) { return padLeft + plotW * ci / (nCols - 1); }
-            function normY(ci, v) {
-                const t = (v - mins[ci]) / (maxs[ci] - mins[ci]);
-                return padTop + plotH - t * plotH;
-            }
-
-            ctx.fillStyle = '#fafafa';
-            ctx.fillRect(0, 0, W, H);
-
-            ctx.textAlign = 'center';
-            for (let ci = 0; ci < nCols; ci++) {
-                const x = colX(ci);
-                ctx.strokeStyle = '#ddd';
-                ctx.beginPath();
-                ctx.moveTo(x, padTop);
-                ctx.lineTo(x, padTop + plotH);
-                ctx.stroke();
-
-                ctx.fillStyle = '#333';
-                ctx.font = 'bold 13px sans-serif';
-                ctx.fillText(cols[ci] + ' ' + SCATTER_COL_NAMES[cols[ci]], x, H - 10);
-
-                ctx.fillStyle = '#999';
-                ctx.font = '11px sans-serif';
-                ctx.fillText(mins[ci].toFixed(2), x, padTop + plotH + 16);
-                ctx.fillText(maxs[ci].toFixed(2), x, padTop - 6);
-            }
-
-            const drawOrder = [
-                ...rows.filter(r => r[7] === '上'),
-                ...rows.filter(r => r[7] === '下'),
-                ...rows.filter(r => r[7] === '走'),
-            ];
-
-            ctx.lineWidth = 1;
-            ctx.globalAlpha = filterMode ? 1.0 : 0.9;
-            for (const row of drawOrder) {
-                const color = SCATTER_RESULT_COLORS[row[7]] || '#999';
-                ctx.strokeStyle = color;
-                ctx.beginPath();
-                for (let ci = 0; ci < nCols; ci++) {
-                    const x = colX(ci);
-                    const y = normY(ci, row[ci]);
-                    if (ci === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
-                }
-                ctx.stroke();
-            }
-
-            ctx.globalAlpha = 1.0;
-            ctx.strokeStyle = '#2196f3';
-            ctx.lineWidth = 3;
-            ctx.beginPath();
-            for (let ci = 0; ci < nCols; ci++) {
-                const x = colX(ci);
-                const y = normY(ci, matchVals[cols[ci]]);
-                if (ci === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
-            }
-            ctx.stroke();
-
-            for (let ci = 0; ci < nCols; ci++) {
-                const x = colX(ci);
-                const y = normY(ci, matchVals[cols[ci]]);
-                ctx.beginPath();
-                ctx.arc(x, y, 5, 0, Math.PI * 2);
-                ctx.fillStyle = '#2196f3';
-                ctx.fill();
-                ctx.strokeStyle = '#fff';
-                ctx.lineWidth = 2;
-                ctx.stroke();
-            }
-            ctx.lineWidth = 1;
-            ctx.globalAlpha = 1.0;
-
-            // 斜率分析
-            renderSlopeTable(rows, matchVals);
-        }
 
         function renderSlopeTable(rows, matchVals) {
             const wrap = document.getElementById('slopeTableWrap');
@@ -1463,7 +1353,7 @@
                     dists.push(d);
                     distSq += d * d;
                 }
-                rowData.push({ idx: i, slopes: slopes, dists: dists, dist: Math.sqrt(distSq), result: rows[i][7] });
+                rowData.push({ idx: i, slopes: slopes, dists: dists, dist: Math.sqrt(distSq), result: rows[i][RESULT_IDX] });
             }
 
             rowData.sort(function(a, b) { return a.dist - b.dist; });
@@ -1564,7 +1454,7 @@
                     distSq += d * d;
                 }
                 dists.push(Math.sqrt(distSq)); // 综合
-                rowDists.push({ dists: dists, result: rows[i][7] });
+                rowDists.push({ dists: dists, result: rows[i][RESULT_IDX] });
             }
             for (var c = 0; c < nCols; c++) {
                 var minV = Infinity, maxV = -Infinity;
@@ -1676,7 +1566,7 @@
         function computeNormStats(rows, ci) {
             var byRes = { '上': [], '下': [], '走': [] };
             for (var i = 0; i < rows.length; i++) {
-                var res = rows[i][7];
+                var res = rows[i][RESULT_IDX];
                 if (byRes[res]) byRes[res].push(rows[i][ci]);
             }
             var stats = {};
@@ -1719,13 +1609,14 @@
             var keys = ['上', '下', '走'];
             var keyColors = { '上': '#e53935', '下': '#4caf50', '走': '#ff9800' };
 
-            for (var ci = 0; ci < SCATTER_COLS.length; ci++) {
-                var col = SCATTER_COLS[ci];
+            for (var ndi = 0; ndi < NORMDIST_COLS.length; ndi++) {
+                var col = NORMDIST_COLS[ndi].col;
+                var dataIdx = NORMDIST_COLS[ndi].idx;
                 var userVal = matchVals[col];
 
-                var fullStats = computeNormStats(allRows, ci);
-                var coarseStats = (coarseRows && coarseRows.length >= 1) ? computeNormStats(coarseRows, ci) : null;
-                var fineStats = (fineRows && fineRows.length >= 1) ? computeNormStats(fineRows, ci) : null;
+                var fullStats = computeNormStats(allRows, dataIdx);
+                var coarseStats = (coarseRows && coarseRows.length >= 1) ? computeNormStats(coarseRows, dataIdx) : null;
+                var fineStats = (fineRows && fineRows.length >= 1) ? computeNormStats(fineRows, dataIdx) : null;
 
                 var fullPct = computeNormPercent(fullStats, userVal);
                 var coarsePct = coarseStats ? computeNormPercent(coarseStats, userVal) : null;
