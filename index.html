@@ -581,10 +581,17 @@
                 <label for="pasteData">快速粘贴（按列顺序：A B C D E F G H I K L M O P Q U V W X Y，用制表符或空格分隔）：</label>
                 <textarea id="pasteData" placeholder="例如：英超	客	4	0	0.8	0	0.78	0	0.02	2.4	3.1	2.7	2.39	2.9	2.74	-0.01	-0.20	0.04	0.15"></textarea>
                 <p class="paste-hint">💡 提示：从Excel或表格中复制整行数据，然后粘贴到上方文本框，点击"解析数据"按钮即可自动填充</p>
-                <button class="btn-parse" onclick="parsePastedData()">解析数据</button>
+                <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                    <button class="btn-parse" onclick="parsePastedData()">解析数据</button>
+                    <button class="btn-check" id="btnCheck" onclick="checkData()">判断</button>
+                    <button class="btn-clear" onclick="clearData()">清空</button>
+                </div>
+                <div style="text-align:right; margin-top:6px;">
+                    <a href="javascript:void(0)" onclick="toggleInputFields()" id="toggleFieldsLink" style="font-size:12px; color:#888; text-decoration:none;">展开输入框 ▼</a>
+                </div>
             </div>
-            
-            <div class="input-grid">
+
+            <div class="input-grid" id="inputFieldsGrid" style="display:none;">
                 <div class="input-group">
                     <label>A (强队)</label>
                     <input type="text" id="A" placeholder="强队">
@@ -667,10 +674,6 @@
                 </div>
             </div>
             
-            <div class="button-group">
-                <button class="btn-check" id="btnCheck" onclick="checkData()">判断</button>
-                <button class="btn-clear" onclick="clearData()">清空</button>
-            </div>
         </div>
         
         <div class="loading" id="loading">
@@ -965,6 +968,18 @@
         return matched;
     }
 
+
+        function toggleInputFields() {
+            var grid = document.getElementById('inputFieldsGrid');
+            var link = document.getElementById('toggleFieldsLink');
+            if (grid.style.display === 'none') {
+                grid.style.display = '';
+                link.textContent = '收起输入框 ▲';
+            } else {
+                grid.style.display = 'none';
+                link.textContent = '展开输入框 ▼';
+            }
+        }
 
         function parsePastedData() {
             const pasteText = document.getElementById('pasteData').value.trim();
