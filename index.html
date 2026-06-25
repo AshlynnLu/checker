@@ -1047,13 +1047,13 @@
         let scatterFiltered = null;
 
         const SCATTER_COLS = ['E','G','L','P','U','X','Y'];
-        const SCATTER_COL_NAMES = {E:"澳上水", G:"马上水", L:"澳平", P:"马平", U:"主差", X:"澳平客差", Y:"马平客差", I:"水差", O:"马主", Q:"马客"};
+        const SCATTER_COL_NAMES = {E:"澳上水", G:"马上水", L:"澳平", P:"马平", U:"主差", X:"澳平客差", Y:"马平客差", I:"水差", V:"平差", W:"客差"};
         const SCATTER_RESULT_COLORS = {"上":"#e53935", "下":"#4caf50", "走":"#ff9800"};
         const RESULT_IDX = 10; // result在每行数据中的索引
         // 正态分布统计用的列定义：列名 -> 行数据中的索引
         const NORMDIST_COLS = [
-            {col: 'I', idx: 7}, {col: 'O', idx: 8}, {col: 'P', idx: 3},
-            {col: 'Q', idx: 9}, {col: 'X', idx: 5}, {col: 'Y', idx: 6}
+            {col: 'I', idx: 7}, {col: 'U', idx: 4}, {col: 'V', idx: 8},
+            {col: 'W', idx: 9}, {col: 'X', idx: 5}, {col: 'Y', idx: 6}
         ];
 
         async function loadScatterData() {
