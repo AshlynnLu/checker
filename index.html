@@ -713,7 +713,10 @@
                 <div id="normalDistTitle" style="font-weight:700; font-size:15px; margin-bottom:10px; color:#333;">📊 正态分布统计</div>
                 <div id="normalDistGrid" style="display:flex; flex-wrap:wrap; gap:12px;"></div>
             </div>
-            <div id="slopeTableWrap" style="display:none; margin-top:18px;"></div>
+            <div id="slopeToggleWrap" style="display:none; margin-top:18px;">
+                <a href="javascript:void(0)" onclick="toggleSlopeTable()" id="slopeToggleLink" style="font-size:12px; color:#666; text-decoration:none;">展开斜率详情 ▼</a>
+                <div id="slopeTableWrap" style="display:none; margin-top:8px;"></div>
+            </div>
         </div>
     </div>
 
@@ -1342,10 +1345,23 @@
         // 固定纵坐标范围
         const SLOPE_PAIRS = [{a:0, b:1, name:'E→G'}, {a:2, b:3, name:'L→P'}, {a:5, b:6, name:'X→Y'}];
 
+        function toggleSlopeTable() {
+            var wrap = document.getElementById('slopeTableWrap');
+            var link = document.getElementById('slopeToggleLink');
+            if (wrap.style.display === 'none') {
+                wrap.style.display = '';
+                link.textContent = '收起斜率详情 ▲';
+            } else {
+                wrap.style.display = 'none';
+                link.textContent = '展开斜率详情 ▼';
+            }
+        }
+
         function renderSlopeTable(rows, matchVals) {
+            var toggleWrap = document.getElementById('slopeToggleWrap');
             const wrap = document.getElementById('slopeTableWrap');
-            if (!rows || rows.length === 0) { wrap.style.display = 'none'; return; }
-            wrap.style.display = '';
+            if (!rows || rows.length === 0) { toggleWrap.style.display = 'none'; return; }
+            toggleWrap.style.display = '';
 
             const cols = SCATTER_COLS;
             // 计算当前比赛的斜率
