@@ -1620,14 +1620,13 @@
             var keys = ['上', '下', '走'];
             var keyColors = { '上': '#e53935', '下': '#4caf50', '走': '#ff9800' };
 
-            function trendLabel(a, b) {
-                if (a === 0 && b === 0) return '<span style="color:#999;">无</span>';
-                if (b > a) return '<span style="color:#e53935; font-weight:bold;">增加</span>';
-                if (b < a) return '<span style="color:#4caf50; font-weight:bold;">减少</span>';
-                return '<span style="color:#999;">无</span>';
+            function trendLabel(fromVal, toVal) {
+                if (fromVal === 0 && toVal === 0) return '<span style="color:#999;">不变</span>';
+                if (toVal > fromVal) return '<span style="color:#e53935; font-weight:bold;">增加</span>';
+                if (toVal < fromVal) return '<span style="color:#4caf50; font-weight:bold;">减少</span>';
+                return '<span style="color:#999;">不变</span>';
             }
 
-            // 预计算每列的三级数据
             var colData = [];
             for (var ndi = 0; ndi < NORMDIST_COLS.length; ndi++) {
                 var col = NORMDIST_COLS[ndi].col;
@@ -1641,54 +1640,67 @@
                 });
             }
 
+            var ranges = [
+                { label: '全', key: 'full' },
+                { label: '中（±0.2）', key: 'mid' },
+                { label: '小（±0.1）', key: 'small' }
+            ];
             var comparisons = [
                 { label: '全：中', from: 'full', to: 'mid' },
                 { label: '全：小', from: 'full', to: 'small' },
                 { label: '中：小', from: 'mid', to: 'small' }
             ];
 
-            // 每3列一组，分两行显示
-            for (var group = 0; group < 2; group++) {
-                var startIdx = group * 3;
-                var endIdx = Math.min(startIdx + 3, NORMDIST_COLS.length);
-                var groupCols = colData.slice(startIdx, endIdx);
+            grid.style.display = 'flex';
+            grid.style.flexWrap = 'wrap';
+            grid.style.gap = '12px';
 
-                var html = '<table style="border-collapse:collapse; font-size:12px; background:#fff; margin-bottom:12px; width:100%;">';
-                html += '<thead><tr style="background:#f5f5f5;">';
-                html += '<th style="border:1px solid #ddd; padding:5px 8px;" rowspan="2">比较</th>';
-                for (var gi = 0; gi < groupCols.length; gi++) {
-                    var c = groupCols[gi];
-                    html += '<th style="border:1px solid #ddd; padding:5px 8px;" colspan="' + (keys.length * 2) + '">' + c.col + '（' + SCATTER_COL_NAMES[c.col] + '）</th>';
-                }
-                html += '</tr><tr style="background:#f5f5f5;">';
-                for (var gi = 0; gi < groupCols.length; gi++) {
+            for (var ndi = 0; ndi < colData.length; ndi++) {
+                var cd = colData[ndi];
+                var card = '<div style="border:1px solid #e0e0e0; border-radius:8px; padding:10px; background:#fafafa; min-width:260px; flex:1;">';
+                card += '<div style="font-weight:bold; margin-bottom:6px;">' + cd.col + '（' + SCATTER_COL_NAMES[cd.col] + '）</div>';
+                card += '<table style="border-collapse:collapse; font-size:12px; width:100%; background:#fff;">';
+                card += '<thead><tr style="background:#f5f5f5;">';
+                card += '<th style="border:1px solid #ddd; padding:4px 6px;">范围</th>';
+                card += '<th style="border:1px solid #ddd; padding:4px 6px;">场数</th>';
+                card += '<th style="border:1px solid #ddd; padding:4px 6px; color:' + keyColors['上'] + ';">上盘</th>';
+                card += '<th style="border:1px solid #ddd; padding:4px 6px; color:' + keyColors['下'] + ';">下盘</th>';
+                card += '<th style="border:1px solid #ddd; padding:4px 6px; color:' + keyColors['走'] + ';">走盘</th>';
+                card += '<th style="border:1px solid #ddd; padding:4px 6px;">变化</th>';
+                card += '</tr></thead><tbody>';
+
+                for (var ri = 0; ri < ranges.length; ri++) {
+                    var r = ranges[ri];
+                    var d = cd[r.key];
+                    card += '<tr>';
+                    card += '<td style="border:1px solid #ddd; padding:4px 6px; font-weight:bold;">' + r.label + '</td>';
+                    card += '<td style="border:1px solid #ddd; padding:4px 6px; text-align:center;">' + d.total + '</td>';
                     for (var ki = 0; ki < keys.length; ki++) {
-                        html += '<th style="border:1px solid #ddd; padding:4px 6px; color:' + keyColors[keys[ki]] + ';">' + keys[ki] + '盘</th>';
-                        html += '<th style="border:1px solid #ddd; padding:4px 6px; color:' + keyColors[keys[ki]] + '; font-size:11px;">趋势</th>';
+                        card += '<td style="border:1px solid #ddd; padding:4px 6px; text-align:center;">' + d[keys[ki]] + '%</td>';
                     }
+                    if (ri === 0) {
+                        card += '<td style="border:1px solid #ddd; padding:4px 6px; text-align:center; color:#999;">—</td>';
+                    } else {
+                        card += '<td style="border:1px solid #ddd; padding:4px 6px; text-align:center; color:#999;">—</td>';
+                    }
+                    card += '</tr>';
                 }
-                html += '</tr></thead><tbody>';
 
                 for (var ci = 0; ci < comparisons.length; ci++) {
                     var cmp = comparisons[ci];
-                    html += '<tr>';
-                    html += '<td style="border:1px solid #ddd; padding:4px 8px; font-weight:bold; white-space:nowrap;">' + cmp.label + '</td>';
-                    for (var gi = 0; gi < groupCols.length; gi++) {
-                        var fromData = groupCols[gi][cmp.from];
-                        var toData = groupCols[gi][cmp.to];
-                        for (var ki = 0; ki < keys.length; ki++) {
-                            var k = keys[ki];
-                            var pct = toData.total > 0 ? toData[k] + '%' : '0';
-                            var trend = (fromData.total > 0 && toData.total > 0) ? trendLabel(fromData[k], toData[k]) : '<span style="color:#999;">0</span>';
-                            html += '<td style="border:1px solid #ddd; padding:4px 6px; text-align:center;">' + pct + '</td>';
-                            html += '<td style="border:1px solid #ddd; padding:4px 6px; text-align:center;">' + trend + '</td>';
-                        }
+                    var fromD = cd[cmp.from];
+                    var toD = cd[cmp.to];
+                    card += '<tr style="background:#f9f9f9;">';
+                    card += '<td style="border:1px solid #eee; padding:3px 6px; font-size:11px; color:#666; font-weight:bold;" colspan="2">' + cmp.label + '</td>';
+                    for (var ki = 0; ki < keys.length; ki++) {
+                        card += '<td style="border:1px solid #eee; padding:3px 6px; text-align:center; font-size:11px;">' + trendLabel(fromD[keys[ki]], toD[keys[ki]]) + '</td>';
                     }
-                    html += '</tr>';
+                    card += '<td style="border:1px solid #eee;"></td>';
+                    card += '</tr>';
                 }
 
-                html += '</tbody></table>';
-                grid.innerHTML += html;
+                card += '</tbody></table></div>';
+                grid.innerHTML += card;
             }
         }
 
