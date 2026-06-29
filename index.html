@@ -708,10 +708,10 @@
             </div>
             <div class="scatter-charts-wrap" id="scatterChartsWrap"></div>
             <div id="slopeSummaryWrap" style="display:none; margin-top:10px;"></div>
-            <!-- 正态分布统计表 -->
+            <!-- 集中度统计表 -->
             <div id="normalDistWrap" style="display:none; margin-top:18px;">
-                <div id="normalDistTitle" style="font-weight:700; font-size:15px; margin-bottom:10px; color:#333;">📊 正态分布统计</div>
-                <div id="normalDistGrid" style="display:flex; flex-wrap:wrap; gap:12px;"></div>
+                <div id="normalDistTitle" style="font-weight:700; font-size:15px; margin-bottom:10px; color:#333;">📊 集中度统计</div>
+                <div id="normalDistGrid"></div>
             </div>
             <div id="slopeToggleWrap" style="display:none; margin-top:18px;">
                 <a href="javascript:void(0)" onclick="toggleSlopeTable()" id="slopeToggleLink" style="font-size:12px; color:#666; text-decoration:none;">展开斜率详情 ▼</a>
@@ -1153,7 +1153,7 @@
             });
             renderNormalDistCharts(scatterGroupRows, scatterCurrentMatch.vals, coarseForNorm, fineForNorm);
             var ndTitle = document.getElementById('normalDistTitle');
-            if (ndTitle) ndTitle.textContent = '📊 正态分布统计（全部 ' + scatterGroupRows.length + '场，初筛 ' + coarseForNorm.length + '场，细筛 ' + fineForNorm.length + '场）';
+            if (ndTitle) ndTitle.textContent = '📊 集中度统计（全部 ' + scatterGroupRows.length + '场，初筛 ' + coarseForNorm.length + '场，细筛 ' + fineForNorm.length + '场）';
         }
 
         // 筛选条件: 初筛 L±0.2, U±0.1, X±0.2, Y±0.2; 细筛 L±0.1, U±0.05, X±0.1, Y±0.1
@@ -1620,66 +1620,74 @@
             var keys = ['上', '下', '走'];
             var keyColors = { '上': '#e53935', '下': '#4caf50', '走': '#ff9800' };
 
-            function cmpLabel(a, b) {
+            function trendLabel(a, b) {
                 if (a === 0 && b === 0) return '<span style="color:#999;">无</span>';
                 if (b > a) return '<span style="color:#e53935; font-weight:bold;">增加</span>';
                 if (b < a) return '<span style="color:#4caf50; font-weight:bold;">减少</span>';
-                return '<span style="color:#999;">持平</span>';
+                return '<span style="color:#999;">无</span>';
             }
 
+            // 预计算每列的三级数据
+            var colData = [];
             for (var ndi = 0; ndi < NORMDIST_COLS.length; ndi++) {
                 var col = NORMDIST_COLS[ndi].col;
                 var dataIdx = NORMDIST_COLS[ndi].idx;
                 var userVal = matchVals[col];
+                colData.push({
+                    col: col,
+                    full: computeConcentration(allRows, dataIdx, userVal, null),
+                    mid: computeConcentration(allRows, dataIdx, userVal, 0.2),
+                    small: computeConcentration(allRows, dataIdx, userVal, 0.1)
+                });
+            }
 
-                var fullC = computeConcentration(allRows, dataIdx, userVal, null);
-                var midC = computeConcentration(allRows, dataIdx, userVal, 0.2);
-                var smallC = computeConcentration(allRows, dataIdx, userVal, 0.1);
+            var comparisons = [
+                { label: '全：中', from: 'full', to: 'mid' },
+                { label: '全：小', from: 'full', to: 'small' },
+                { label: '中：小', from: 'mid', to: 'small' }
+            ];
 
-                var ranges = [
-                    { label: '全', data: fullC },
-                    { label: '中（±0.2）', data: midC },
-                    { label: '小（±0.1）', data: smallC }
-                ];
+            // 每3列一组，分两行显示
+            for (var group = 0; group < 2; group++) {
+                var startIdx = group * 3;
+                var endIdx = Math.min(startIdx + 3, NORMDIST_COLS.length);
+                var groupCols = colData.slice(startIdx, endIdx);
 
-                var html = '<div style="background:#fffde7; border:1px solid #e0e0e0; border-radius:6px; padding:10px; min-width:320px; flex:1;">';
-                html += '<div style="font-weight:bold; font-size:13px; margin-bottom:6px; color:#333;">' + col + ' ' + SCATTER_COL_NAMES[col] + '</div>';
-                html += '<table style="border-collapse:collapse; width:100%; font-size:12px;">';
+                var html = '<table style="border-collapse:collapse; font-size:12px; background:#fff; margin-bottom:12px; width:100%;">';
                 html += '<thead><tr style="background:#f5f5f5;">';
-                html += '<th style="border:1px solid #ddd; padding:4px 6px;">范围</th>';
-                html += '<th style="border:1px solid #ddd; padding:4px 6px;">场数</th>';
-                for (var ki = 0; ki < keys.length; ki++) {
-                    html += '<th style="border:1px solid #ddd; padding:4px 6px; color:' + keyColors[keys[ki]] + ';">' + keys[ki] + '盘</th>';
+                html += '<th style="border:1px solid #ddd; padding:5px 8px;" rowspan="2">比较</th>';
+                for (var gi = 0; gi < groupCols.length; gi++) {
+                    var c = groupCols[gi];
+                    html += '<th style="border:1px solid #ddd; padding:5px 8px;" colspan="' + (keys.length * 2) + '">' + c.col + '（' + SCATTER_COL_NAMES[c.col] + '）</th>';
                 }
-                html += '<th style="border:1px solid #ddd; padding:4px 6px;">变化</th>';
+                html += '</tr><tr style="background:#f5f5f5;">';
+                for (var gi = 0; gi < groupCols.length; gi++) {
+                    for (var ki = 0; ki < keys.length; ki++) {
+                        html += '<th style="border:1px solid #ddd; padding:4px 6px; color:' + keyColors[keys[ki]] + ';">' + keys[ki] + '盘</th>';
+                        html += '<th style="border:1px solid #ddd; padding:4px 6px; color:' + keyColors[keys[ki]] + '; font-size:11px;">趋势</th>';
+                    }
+                }
                 html += '</tr></thead><tbody>';
 
-                for (var ri = 0; ri < ranges.length; ri++) {
-                    var r = ranges[ri];
-                    var prev = ri > 0 ? ranges[ri - 1].data : null;
+                for (var ci = 0; ci < comparisons.length; ci++) {
+                    var cmp = comparisons[ci];
                     html += '<tr>';
-                    html += '<td style="border:1px solid #ddd; padding:4px 6px; font-weight:bold;">' + r.label + '</td>';
-                    html += '<td style="border:1px solid #ddd; padding:4px 6px; text-align:center;">' + r.data.total + '</td>';
-                    for (var ki = 0; ki < keys.length; ki++) {
-                        html += '<td style="border:1px solid #ddd; padding:4px 6px; text-align:center;">' + (r.data.total > 0 ? r.data[keys[ki]] + '%' : '0') + '</td>';
-                    }
-                    // 变化列：与上一级比较
-                    if (prev && r.data.total > 0) {
-                        var parts = [];
+                    html += '<td style="border:1px solid #ddd; padding:4px 8px; font-weight:bold; white-space:nowrap;">' + cmp.label + '</td>';
+                    for (var gi = 0; gi < groupCols.length; gi++) {
+                        var fromData = groupCols[gi][cmp.from];
+                        var toData = groupCols[gi][cmp.to];
                         for (var ki = 0; ki < keys.length; ki++) {
                             var k = keys[ki];
-                            if (r.data[k] !== prev[k]) {
-                                parts.push(cmpLabel(prev[k], r.data[k]));
-                            }
+                            var pct = toData.total > 0 ? toData[k] + '%' : '0';
+                            var trend = (fromData.total > 0 && toData.total > 0) ? trendLabel(fromData[k], toData[k]) : '<span style="color:#999;">0</span>';
+                            html += '<td style="border:1px solid #ddd; padding:4px 6px; text-align:center;">' + pct + '</td>';
+                            html += '<td style="border:1px solid #ddd; padding:4px 6px; text-align:center;">' + trend + '</td>';
                         }
-                        html += '<td style="border:1px solid #ddd; padding:4px 6px; text-align:center; font-size:11px;">' + (parts.length > 0 ? parts.join(' ') : '持平') + '</td>';
-                    } else {
-                        html += '<td style="border:1px solid #ddd; padding:4px 6px; text-align:center; color:#999;">—</td>';
                     }
                     html += '</tr>';
                 }
 
-                html += '</tbody></table></div>';
+                html += '</tbody></table>';
                 grid.innerHTML += html;
             }
         }
