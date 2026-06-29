@@ -1627,37 +1627,6 @@
                 return '<span style="color:#999;">不变</span>';
             }
 
-            function countResults(rows) {
-                var total = rows.length;
-                if (total === 0) return { '上': 0, '下': 0, '走': 0, total: 0 };
-                var counts = { '上': 0, '下': 0, '走': 0 };
-                for (var i = 0; i < rows.length; i++) {
-                    var res = rows[i][RESULT_IDX];
-                    if (counts.hasOwnProperty(res)) counts[res]++;
-                }
-                return {
-                    '上': Math.round(counts['上'] / total * 100),
-                    '下': Math.round(counts['下'] / total * 100),
-                    '走': Math.round(counts['走'] / total * 100),
-                    total: total
-                };
-            }
-
-            var fullData = countResults(allRows);
-            var coarseData = countResults(coarseRows || []);
-            var fineData = countResults(fineRows || []);
-
-            var ranges = [
-                { label: '全', data: fullData },
-                { label: '初筛', data: coarseData },
-                { label: '细筛', data: fineData }
-            ];
-            var comparisons = [
-                { label: '全：初', from: fullData, to: coarseData },
-                { label: '全：细', from: fullData, to: fineData },
-                { label: '初：细', from: coarseData, to: fineData }
-            ];
-
             grid.style.display = 'flex';
             grid.style.flexWrap = 'wrap';
             grid.style.gap = '12px';
@@ -1667,18 +1636,18 @@
                 var dataIdx = NORMDIST_COLS[ndi].idx;
                 var userVal = matchVals[col];
                 var colFull = computeConcentration(allRows, dataIdx, userVal, null);
-                var colCoarse = computeConcentration(coarseRows || [], dataIdx, userVal, null);
-                var colFine = computeConcentration(fineRows || [], dataIdx, userVal, null);
+                var colMid = computeConcentration(allRows, dataIdx, userVal, 0.2);
+                var colSmall = computeConcentration(allRows, dataIdx, userVal, 0.1);
 
                 var colRanges = [
                     { label: '全', data: colFull },
-                    { label: '初筛', data: colCoarse },
-                    { label: '细筛', data: colFine }
+                    { label: '中（±0.2）', data: colMid },
+                    { label: '小（±0.1）', data: colSmall }
                 ];
                 var colComparisons = [
-                    { label: '全：初', from: colFull, to: colCoarse },
-                    { label: '全：细', from: colFull, to: colFine },
-                    { label: '初：细', from: colCoarse, to: colFine }
+                    { label: '全：中', from: colFull, to: colMid },
+                    { label: '全：小', from: colFull, to: colSmall },
+                    { label: '中：小', from: colMid, to: colSmall }
                 ];
 
                 var card = '<div style="border:1px solid #e0e0e0; border-radius:8px; padding:10px; background:#fafafa; flex:1 1 30%; min-width:240px; max-width:33%;">';
