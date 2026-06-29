@@ -1636,13 +1636,13 @@
                 var dataIdx = NORMDIST_COLS[ndi].idx;
                 var userVal = matchVals[col];
                 var colFull = computeConcentration(allRows, dataIdx, userVal, null);
-                var colMid = computeConcentration(allRows, dataIdx, userVal, 0.2);
-                var colSmall = computeConcentration(allRows, dataIdx, userVal, 0.1);
+                var colMid = computeConcentration(allRows, dataIdx, userVal, 0.1);
+                var colSmall = computeConcentration(allRows, dataIdx, userVal, 0.05);
 
                 var colRanges = [
                     { label: '全', data: colFull },
-                    { label: '中（±0.2）', data: colMid },
-                    { label: '小（±0.1）', data: colSmall }
+                    { label: '中（±0.1）', data: colMid },
+                    { label: '小（±0.05）', data: colSmall }
                 ];
                 var colComparisons = [
                     { label: '全：中', from: colFull, to: colMid },
