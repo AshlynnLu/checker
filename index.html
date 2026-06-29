@@ -1627,38 +1627,62 @@
                 return '<span style="color:#999;">不变</span>';
             }
 
-            var colData = [];
-            for (var ndi = 0; ndi < NORMDIST_COLS.length; ndi++) {
-                var col = NORMDIST_COLS[ndi].col;
-                var dataIdx = NORMDIST_COLS[ndi].idx;
-                var userVal = matchVals[col];
-                colData.push({
-                    col: col,
-                    full: computeConcentration(allRows, dataIdx, userVal, null),
-                    mid: computeConcentration(allRows, dataIdx, userVal, 0.2),
-                    small: computeConcentration(allRows, dataIdx, userVal, 0.1)
-                });
+            function countResults(rows) {
+                var total = rows.length;
+                if (total === 0) return { '上': 0, '下': 0, '走': 0, total: 0 };
+                var counts = { '上': 0, '下': 0, '走': 0 };
+                for (var i = 0; i < rows.length; i++) {
+                    var res = rows[i][RESULT_IDX];
+                    if (counts.hasOwnProperty(res)) counts[res]++;
+                }
+                return {
+                    '上': Math.round(counts['上'] / total * 100),
+                    '下': Math.round(counts['下'] / total * 100),
+                    '走': Math.round(counts['走'] / total * 100),
+                    total: total
+                };
             }
 
+            var fullData = countResults(allRows);
+            var coarseData = countResults(coarseRows || []);
+            var fineData = countResults(fineRows || []);
+
             var ranges = [
-                { label: '全', key: 'full' },
-                { label: '中（±0.2）', key: 'mid' },
-                { label: '小（±0.1）', key: 'small' }
+                { label: '全', data: fullData },
+                { label: '初筛', data: coarseData },
+                { label: '细筛', data: fineData }
             ];
             var comparisons = [
-                { label: '全：中', from: 'full', to: 'mid' },
-                { label: '全：小', from: 'full', to: 'small' },
-                { label: '中：小', from: 'mid', to: 'small' }
+                { label: '全：初', from: fullData, to: coarseData },
+                { label: '全：细', from: fullData, to: fineData },
+                { label: '初：细', from: coarseData, to: fineData }
             ];
 
             grid.style.display = 'flex';
             grid.style.flexWrap = 'wrap';
             grid.style.gap = '12px';
 
-            for (var ndi = 0; ndi < colData.length; ndi++) {
-                var cd = colData[ndi];
-                var card = '<div style="border:1px solid #e0e0e0; border-radius:8px; padding:10px; background:#fafafa; min-width:260px; flex:1;">';
-                card += '<div style="font-weight:bold; margin-bottom:6px;">' + cd.col + '（' + SCATTER_COL_NAMES[cd.col] + '）</div>';
+            for (var ndi = 0; ndi < NORMDIST_COLS.length; ndi++) {
+                var col = NORMDIST_COLS[ndi].col;
+                var dataIdx = NORMDIST_COLS[ndi].idx;
+                var userVal = matchVals[col];
+                var colFull = computeConcentration(allRows, dataIdx, userVal, null);
+                var colCoarse = computeConcentration(coarseRows || [], dataIdx, userVal, null);
+                var colFine = computeConcentration(fineRows || [], dataIdx, userVal, null);
+
+                var colRanges = [
+                    { label: '全', data: colFull },
+                    { label: '初筛', data: colCoarse },
+                    { label: '细筛', data: colFine }
+                ];
+                var colComparisons = [
+                    { label: '全：初', from: colFull, to: colCoarse },
+                    { label: '全：细', from: colFull, to: colFine },
+                    { label: '初：细', from: colCoarse, to: colFine }
+                ];
+
+                var card = '<div style="border:1px solid #e0e0e0; border-radius:8px; padding:10px; background:#fafafa; flex:1 1 30%; min-width:240px; max-width:33%;">';
+                card += '<div style="font-weight:bold; margin-bottom:6px;">' + col + '（' + SCATTER_COL_NAMES[col] + '）</div>';
                 card += '<table style="border-collapse:collapse; font-size:12px; width:100%; background:#fff;">';
                 card += '<thead><tr style="background:#f5f5f5;">';
                 card += '<th style="border:1px solid #ddd; padding:4px 6px;">范围</th>';
@@ -1666,36 +1690,31 @@
                 card += '<th style="border:1px solid #ddd; padding:4px 6px; color:' + keyColors['上'] + ';">上盘</th>';
                 card += '<th style="border:1px solid #ddd; padding:4px 6px; color:' + keyColors['下'] + ';">下盘</th>';
                 card += '<th style="border:1px solid #ddd; padding:4px 6px; color:' + keyColors['走'] + ';">走盘</th>';
-                card += '<th style="border:1px solid #ddd; padding:4px 6px;">变化</th>';
                 card += '</tr></thead><tbody>';
 
-                for (var ri = 0; ri < ranges.length; ri++) {
-                    var r = ranges[ri];
-                    var d = cd[r.key];
+                for (var ri = 0; ri < colRanges.length; ri++) {
+                    var r = colRanges[ri];
+                    var d = r.data;
                     card += '<tr>';
                     card += '<td style="border:1px solid #ddd; padding:4px 6px; font-weight:bold;">' + r.label + '</td>';
                     card += '<td style="border:1px solid #ddd; padding:4px 6px; text-align:center;">' + d.total + '</td>';
                     for (var ki = 0; ki < keys.length; ki++) {
-                        card += '<td style="border:1px solid #ddd; padding:4px 6px; text-align:center;">' + d[keys[ki]] + '%</td>';
-                    }
-                    if (ri === 0) {
-                        card += '<td style="border:1px solid #ddd; padding:4px 6px; text-align:center; color:#999;">—</td>';
-                    } else {
-                        card += '<td style="border:1px solid #ddd; padding:4px 6px; text-align:center; color:#999;">—</td>';
+                        card += '<td style="border:1px solid #ddd; padding:4px 6px; text-align:center;">' + (d.total > 0 ? d[keys[ki]] + '%' : '—') + '</td>';
                     }
                     card += '</tr>';
                 }
 
-                for (var ci = 0; ci < comparisons.length; ci++) {
-                    var cmp = comparisons[ci];
-                    var fromD = cd[cmp.from];
-                    var toD = cd[cmp.to];
+                for (var ci = 0; ci < colComparisons.length; ci++) {
+                    var cmp = colComparisons[ci];
                     card += '<tr style="background:#f9f9f9;">';
                     card += '<td style="border:1px solid #eee; padding:3px 6px; font-size:11px; color:#666; font-weight:bold;" colspan="2">' + cmp.label + '</td>';
                     for (var ki = 0; ki < keys.length; ki++) {
-                        card += '<td style="border:1px solid #eee; padding:3px 6px; text-align:center; font-size:11px;">' + trendLabel(fromD[keys[ki]], toD[keys[ki]]) + '</td>';
+                        if (cmp.from.total > 0 && cmp.to.total > 0) {
+                            card += '<td style="border:1px solid #eee; padding:3px 6px; text-align:center; font-size:11px;">' + trendLabel(cmp.from[keys[ki]], cmp.to[keys[ki]]) + '</td>';
+                        } else {
+                            card += '<td style="border:1px solid #eee; padding:3px 6px; text-align:center; font-size:11px; color:#999;">—</td>';
+                        }
                     }
-                    card += '<td style="border:1px solid #eee;"></td>';
                     card += '</tr>';
                 }
 
