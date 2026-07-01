@@ -1106,7 +1106,6 @@
             const F = data.F;
 
             if (B !== '主' && B !== '客') { alert('B列必须是"主"或"客"'); return; }
-            if (parseFloat(F) >= 1.5) { alert('马会让球数≥1.5，不予显示'); return; }
 
             const vals = {};
             for (const c of SCATTER_COLS) {
