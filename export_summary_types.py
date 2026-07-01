@@ -603,21 +603,15 @@ def build_summary_types(
 
 
 def _export_scatter_data(base_rows: List[Dict[str, Any]], out_path: str) -> None:
-    """导出散点图数据：按 morph 分组，只保留马会让球数<1.5 的行。
+    """导出散点图数据：按 morph 分组，包含所有行。
 
     格式紧凑：每组为 { cols: [...], rows: [[v1,v2,...,result], ...] }
     """
     SCATTER_COLS = ["E", "G", "L", "P", "U", "X", "Y"]
-    EXTRA_COLS = ["I", "V", "W"]  # 正态分布统计用的额外列
+    EXTRA_COLS = ["I", "V", "W"]  # 集中度统计用的额外列
     buckets: Dict[str, List[List[Any]]] = defaultdict(list)
 
     for row in base_rows:
-        try:
-            f_val = float(row["F"])
-        except (ValueError, TypeError):
-            continue
-        if f_val >= 1.5:
-            continue
 
         key = f"{row['side']}|{row['D']}|{row['F']}"
         vals: List[Any] = []
