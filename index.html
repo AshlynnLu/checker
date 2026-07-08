@@ -708,6 +708,8 @@
             </div>
             <div class="scatter-charts-wrap" id="scatterChartsWrap"></div>
             <div id="slopeSummaryWrap" style="display:none; margin-top:10px;"></div>
+            <!-- 预测结果 -->
+            <div id="predictionWrap" style="display:none; margin-top:14px;"></div>
             <!-- 集中度统计表 -->
             <div id="normalDistWrap" style="display:none; margin-top:18px;">
                 <div id="normalDistTitle" style="font-weight:700; font-size:15px; margin-bottom:10px; color:#333;">📊 集中度统计</div>
@@ -1153,6 +1155,7 @@
             renderNormalDistCharts(scatterGroupRows, scatterCurrentMatch.vals, coarseForNorm, fineForNorm);
             var ndTitle = document.getElementById('normalDistTitle');
             if (ndTitle) ndTitle.textContent = '📊 集中度统计（全部 ' + scatterGroupRows.length + '场，初筛 ' + coarseForNorm.length + '场，细筛 ' + fineForNorm.length + '场）';
+            renderPrediction(scatterGroupRows, scatterCurrentMatch.vals, coarseForNorm, fineForNorm);
         }
 
         // 筛选条件: 初筛 L±0.2, U±0.1, X±0.2, Y±0.2; 细筛 L±0.1, U±0.05, X±0.1, Y±0.1
@@ -1691,6 +1694,170 @@
                 card += '</tbody></table></div>';
                 grid.innerHTML += card;
             }
+        }
+
+        // 预测判断
+        function renderPrediction(allRows, matchVals, coarseRows, fineRows) {
+            var wrap = document.getElementById('predictionWrap');
+            if (!allRows || allRows.length === 0) { wrap.style.display = 'none'; return; }
+
+            // === 方法一：斜率距离远近结果统计 ===
+            var fullSummary = computeSlopeSummaryForRows(allRows, matchVals);
+            var coarseSummary = coarseRows.length > 0 ? computeSlopeSummaryForRows(coarseRows, matchVals) : null;
+            var fineSummary = fineRows.length > 0 ? computeSlopeSummaryForRows(fineRows, matchVals) : null;
+
+            function allEqual(sets, val) {
+                for (var i = 0; i < sets.length; i++) {
+                    var keys = Object.keys(sets[i]);
+                    if (keys.length !== 1 || keys[0] !== val) return false;
+                }
+                return true;
+            }
+            function hasZou(summary) {
+                var all = summary.near.concat(summary.far);
+                for (var i = 0; i < all.length; i++) { if (all[i]['走']) return true; }
+                return false;
+            }
+            function countZouCells(summary) {
+                var cnt = 0, all = summary.near.concat(summary.far);
+                for (var i = 0; i < all.length; i++) { if (all[i]['走']) cnt++; }
+                return cnt;
+            }
+
+            var m1Pred = null, m1Rule = '';
+
+            if (fineSummary && fineRows.length > 0) {
+                if (allEqual(fineSummary.near, '上') && (allEqual(fineSummary.far, '上') || allEqual(fineSummary.far, '下'))) {
+                    m1Pred = '上'; m1Rule = '细筛近距离均上，远距离均上/下→上';
+                } else if (allEqual(fineSummary.near, '下') && allEqual(fineSummary.far, '下')) {
+                    if (coarseSummary && allEqual(coarseSummary.far, '下')) {
+                        m1Pred = '下'; m1Rule = '细筛近均下远均下，初筛远均下→下';
+                    } else if (coarseSummary && allEqual(coarseSummary.far, '上')) {
+                        m1Pred = '上'; m1Rule = '细筛近均下远均下，初筛远均上→上';
+                    }
+                }
+            }
+            if (!m1Pred && coarseSummary && coarseRows.length > 0 && fineRows.length === 0) {
+                var fullNoZou = !hasZou(fullSummary);
+                var fullFarNotAllXia = !allEqual(fullSummary.far, '下');
+                var coarseNearAllXia = allEqual(coarseSummary.near, '下');
+                var coarseFarAllXia = allEqual(coarseSummary.far, '下');
+                if (fullNoZou && fullFarNotAllXia && coarseNearAllXia && coarseFarAllXia) {
+                    m1Pred = '上'; m1Rule = '有初筛无细筛，全无走且全远非均下，初筛近远均下→上';
+                }
+                if (!m1Pred) {
+                    var zc = countZouCells(fullSummary);
+                    if (zc > 1 && coarseNearAllXia) {
+                        m1Pred = '走'; m1Rule = '有初筛无细筛，全数据走' + zc + '个>1，初筛近均下→走';
+                    }
+                }
+            }
+            if (!m1Pred && coarseRows.length === 0) {
+                if (fullSummary.near[2]['上'] && Object.keys(fullSummary.near[2]).length === 1 &&
+                    fullSummary.near[3]['上'] && Object.keys(fullSummary.near[3]).length === 1) {
+                    m1Pred = '下'; m1Rule = '无初筛，全近X→Y和综合均上→下';
+                }
+                if (!m1Pred) {
+                    var zc = countZouCells(fullSummary);
+                    if (zc > 1) { m1Pred = '走'; m1Rule = '无初筛，全数据走' + zc + '个>1→走'; }
+                }
+            }
+
+            // === 方法二：集中度统计 ===
+            var CONC_M2 = [{col:'V', idx:8}, {col:'X', idx:5}, {col:'Y', idx:6}];
+            var tolerances = [[null], [0.1], [0.05]];
+            var upPcts = [], downPcts = [], zouPcts = [];
+            for (var ci = 0; ci < CONC_M2.length; ci++) {
+                for (var ti = 0; ti < tolerances.length; ti++) {
+                    var c = computeConcentration(allRows, CONC_M2[ci].idx, matchVals[CONC_M2[ci].col], tolerances[ti][0]);
+                    upPcts.push(c['上']); downPcts.push(c['下']); zouPcts.push(c['走']);
+                }
+            }
+
+            function checkWithZeros(pcts, threshold, minStrict) {
+                var nz = 0;
+                for (var i = 0; i < pcts.length; i++) { if (pcts[i] === 0) nz++; }
+                if (nz > 2) return false;
+                var sc = 0, ok = true;
+                for (var i = 0; i < pcts.length; i++) {
+                    if (pcts[i] === 0) { sc++; continue; }
+                    if (pcts[i] > threshold) sc++;
+                }
+                return sc >= minStrict;
+            }
+            function checkWithZerosAndRest(pcts, threshold, restThreshold, minStrict) {
+                var nz = 0;
+                for (var i = 0; i < pcts.length; i++) { if (pcts[i] === 0) nz++; }
+                if (nz > 2) return false;
+                var sc = 0, ok = true;
+                for (var i = 0; i < pcts.length; i++) {
+                    if (pcts[i] === 0) { sc++; continue; }
+                    if (pcts[i] > threshold) { sc++; }
+                    else if (pcts[i] <= restThreshold) { ok = false; }
+                }
+                return sc >= minStrict && ok;
+            }
+
+            var m2Pred = null, m2Rule = '';
+            if (checkWithZeros(downPcts, 50, 9)) {
+                m2Pred = '下'; m2Rule = 'V/X/Y全中小下盘均>50%→下';
+            }
+            if (!m2Pred && checkWithZeros(upPcts, 50, 9)) {
+                m2Pred = '上'; m2Rule = 'V/X/Y全中小上盘均>50%→上';
+            }
+            if (!m2Pred && checkWithZerosAndRest(upPcts, 50, 49, 6)) {
+                var n = 0; for (var i = 0; i < upPcts.length; i++) { if (upPcts[i] === 0 || upPcts[i] > 50) n++; }
+                m2Pred = '上'; m2Rule = '上盘' + n + '个>50%，余均>49%→上';
+            }
+            if (!m2Pred && checkWithZerosAndRest(downPcts, 50, 49, 6)) {
+                var n = 0; for (var i = 0; i < downPcts.length; i++) { if (downPcts[i] === 0 || downPcts[i] > 50) n++; }
+                m2Pred = '下'; m2Rule = '下盘' + n + '个>50%，余均>49%→下';
+            }
+            if (!m2Pred) {
+                var zgt20 = 0;
+                for (var i = 0; i < zouPcts.length; i++) { if (zouPcts[i] > 20) zgt20++; }
+                if (zgt20 >= 6) { m2Pred = '走'; m2Rule = '走盘' + zgt20 + '个>20%→走'; }
+            }
+
+            // === 渲染结果 ===
+            var predColors = {'上':'#e53935','下':'#4caf50','走':'#ff9800'};
+            var html = '<div style="border:2px solid #1976d2; border-radius:10px; padding:14px 18px; background:linear-gradient(135deg,#e3f2fd,#fff);">';
+            html += '<div style="font-weight:700; font-size:15px; margin-bottom:10px; color:#1976d2;">🎯 预测结果</div>';
+            html += '<table style="border-collapse:collapse; width:100%; font-size:14px; background:#fff; border-radius:6px; overflow:hidden;">';
+            html += '<thead><tr style="background:#e3f2fd;">';
+            html += '<th style="border:1px solid #ddd; padding:8px 12px; text-align:left;">判断方法</th>';
+            html += '<th style="border:1px solid #ddd; padding:8px 12px; text-align:center;">预测结果</th>';
+            html += '<th style="border:1px solid #ddd; padding:8px 12px; text-align:left;">依据</th>';
+            html += '</tr></thead><tbody>';
+
+            function predCell(pred, rule) {
+                var predHtml = pred
+                    ? '<span style="color:' + (predColors[pred]||'#333') + '; font-weight:bold; font-size:16px;">' + pred + '</span>'
+                    : '<span style="color:#999;">不满足条件</span>';
+                var ruleHtml = rule ? '<span style="font-size:12px; color:#555;">' + rule + '</span>' : '<span style="color:#ccc;">—</span>';
+                return '<td style="border:1px solid #ddd; padding:8px 12px; text-align:center;">' + predHtml + '</td>'
+                     + '<td style="border:1px solid #ddd; padding:8px 12px;">' + ruleHtml + '</td>';
+            }
+
+            html += '<tr><td style="border:1px solid #ddd; padding:8px 12px; font-weight:bold;">方法一：斜率距离远近</td>' + predCell(m1Pred, m1Rule) + '</tr>';
+            html += '<tr><td style="border:1px solid #ddd; padding:8px 12px; font-weight:bold;">方法二：集中度统计</td>' + predCell(m2Pred, m2Rule) + '</tr>';
+            html += '</tbody></table>';
+
+            if (m1Pred && m2Pred && m1Pred === m2Pred) {
+                html += '<div style="margin-top:10px; padding:8px 14px; background:#e8f5e9; border-radius:6px; font-weight:bold; color:#2e7d32; font-size:14px;">✅ 两种方法一致 → <span style="font-size:18px; color:' + (predColors[m1Pred]||'#333') + ';">' + m1Pred + '</span></div>';
+            } else if (m1Pred && m2Pred && m1Pred !== m2Pred) {
+                html += '<div style="margin-top:10px; padding:8px 14px; background:#fff3e0; border-radius:6px; font-weight:bold; color:#e65100; font-size:14px;">⚠️ 两种方法矛盾：方法一=<span style="color:' + (predColors[m1Pred]||'#333') + ';">' + m1Pred + '</span>，方法二=<span style="color:' + (predColors[m2Pred]||'#333') + ';">' + m2Pred + '</span></div>';
+            } else if (m1Pred || m2Pred) {
+                var which = m1Pred ? '方法一' : '方法二';
+                var pred = m1Pred || m2Pred;
+                html += '<div style="margin-top:10px; padding:8px 14px; background:#e3f2fd; border-radius:6px; font-weight:bold; color:#1565c0; font-size:14px;">→ 仅' + which + '有预测：<span style="font-size:18px; color:' + (predColors[pred]||'#333') + ';">' + pred + '</span></div>';
+            } else {
+                html += '<div style="margin-top:10px; padding:8px 14px; background:#f5f5f5; border-radius:6px; color:#999; font-size:13px;">两种方法均不满足预测条件</div>';
+            }
+
+            html += '</div>';
+            wrap.innerHTML = html;
+            wrap.style.display = '';
         }
 
         // Close modal on overlay click
