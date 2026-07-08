@@ -1667,7 +1667,9 @@
                     card += '<td style="border:1px solid #ddd; padding:4px 6px; font-weight:bold;">' + r.label + '</td>';
                     card += '<td style="border:1px solid #ddd; padding:4px 6px; text-align:center;">' + d.total + '</td>';
                     for (var ki = 0; ki < keys.length; ki++) {
-                        card += '<td style="border:1px solid #ddd; padding:4px 6px; text-align:center;">' + (d.total > 0 ? d[keys[ki]] + '%' : '—') + '</td>';
+                        var pctVal = d[keys[ki]];
+                        var pctColor = pctVal > 55 ? '#e53935' : pctVal < 45 ? '#4caf50' : '';
+                        card += '<td style="border:1px solid #ddd; padding:4px 6px; text-align:center;' + (pctColor ? ' color:' + pctColor + '; font-weight:bold;' : '') + '">' + (d.total > 0 ? pctVal + '%' : '—') + '</td>';
                     }
                     card += '</tr>';
                 }
