@@ -1671,7 +1671,7 @@
                     card += '<td style="border:1px solid #ddd; padding:4px 6px; text-align:center;">' + d.total + '</td>';
                     for (var ki = 0; ki < keys.length; ki++) {
                         var pctVal = d[keys[ki]];
-                        var pctColor = pctVal > 55 ? '#e53935' : pctVal < 45 ? '#4caf50' : '';
+                        var pctColor = pctVal > 50.5 ? '#e53935' : (pctVal > 0 && pctVal < 49.5) ? '#4caf50' : '';
                         card += '<td style="border:1px solid #ddd; padding:4px 6px; text-align:center;' + (pctColor ? ' color:' + pctColor + '; font-weight:bold;' : '') + '">' + (d.total > 0 ? pctVal + '%' : '—') + '</td>';
                     }
                     card += '</tr>';
@@ -1814,9 +1814,12 @@
                 m2Pred = '下'; m2Rule = '下盘' + n + '个>50%，余均>49%→下';
             }
             if (!m2Pred) {
-                var zgt20 = 0;
-                for (var i = 0; i < zouPcts.length; i++) { if (zouPcts[i] > 20) zgt20++; }
-                if (zgt20 >= 6) { m2Pred = '走'; m2Rule = '走盘' + zgt20 + '个>20%→走'; }
+                var zgt20 = 0, zlt20 = 0;
+                for (var i = 0; i < zouPcts.length; i++) {
+                    if (zouPcts[i] > 20) zgt20++;
+                    if (zouPcts[i] > 0 && zouPcts[i] < 20) zlt20++;
+                }
+                if (zgt20 > 4 && zlt20 < 2) { m2Pred = '走'; m2Rule = '走盘' + zgt20 + '个>20%且<20%仅' + zlt20 + '个→走'; }
             }
 
             // === 渲染结果 ===
