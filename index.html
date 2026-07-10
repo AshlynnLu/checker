@@ -1547,11 +1547,11 @@
                     if (zouPcts[i] > 20) zgt20++;
                     if (zouPcts[i] > 0 && zouPcts[i] < 20) zlt20++;
                 }
-                if (zgt20 > 4 && zlt20 < 2) { m2Pred = '走'; m2Rule = '走盘' + zgt20 + '个>20%且<20%仅' + zlt20 + '个→走'; }
+                if (zgt20 > 4 && zlt20 < 2) { m2Pred = '走/上'; m2Rule = '走盘' + zgt20 + '个>20%且<20%仅' + zlt20 + '个→走/上'; }
             }
 
             // === 渲染结果 ===
-            var predColors = {'上':'#e53935','下':'#4caf50','走':'#ff9800'};
+            var predColors = {'上':'#e53935','下':'#4caf50','走':'#ff9800','走/上':'#ff9800'};
             var html = '<div style="border:2px solid #1976d2; border-radius:10px; padding:14px 18px; background:linear-gradient(135deg,#e3f2fd,#fff);">';
             html += '<div style="font-weight:700; font-size:15px; margin-bottom:10px; color:#1976d2;">🎯 预测结果</div>';
             html += '<table style="border-collapse:collapse; width:100%; font-size:14px; background:#fff; border-radius:6px; overflow:hidden;">';
