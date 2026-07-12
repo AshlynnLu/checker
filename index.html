@@ -586,17 +586,6 @@
 
         <!-- Scatter plot section -->
         <div class="scatter-section" id="scatterSection">
-            <div class="scatter-title">散点图分析</div>
-            <div class="scatter-input-area">
-                <div class="scatter-btn-row">
-                    <button class="btn-scatter-add" onclick="scatterAdd()">添加比赛（使用上方数据）</button>
-                    <button class="btn-scatter-filter" onclick="scatterFilter('coarse')" id="btnScatterCoarse" style="display:none;">初筛</button>
-                    <button class="btn-scatter-filter" onclick="scatterFilter('fine')" id="btnScatterFine" style="display:none;">细筛</button>
-                    <button class="btn-scatter-filter" onclick="showSlopeSummary()" id="btnSlopeSummary" style="display:none;">斜率统计</button>
-                    <button class="btn-scatter-reset" onclick="scatterReset()" id="btnScatterReset" style="display:none;">重置</button>
-                    <span class="scatter-morph-info" id="scatterMorphInfo"></span>
-                </div>
-            </div>
             <div id="slopeSummaryWrap" style="display:none; margin-top:10px;"></div>
             <!-- 预测结果 -->
             <div id="predictionWrap" style="display:none; margin-top:14px;"></div>
@@ -1012,12 +1001,6 @@
             scatterGroupRows = group;
             scatterFiltered = null;
 
-            document.getElementById('scatterMorphInfo').textContent = '形态：' + morphKey + '（共' + group.length + '场历史比赛）';
-            document.getElementById('btnScatterCoarse').style.display = '';
-            document.getElementById('btnScatterFine').style.display = '';
-            document.getElementById('btnSlopeSummary').style.display = '';
-            document.getElementById('btnScatterReset').style.display = '';
-
             renderSlopeTable(scatterGroupRows, scatterCurrentMatch.vals);
             showSlopeSummary();
             // 正态分布：全部 + 初筛叠加 + 细筛蓝线
@@ -1051,9 +1034,6 @@
                        Math.abs(row[6] - mv.Y) <= tY;
             });
             scatterFiltered = mode;
-            document.getElementById('scatterMorphInfo').textContent =
-                '形态：' + scatterCurrentMatch.B + '|' + scatterCurrentMatch.D + '|' + scatterCurrentMatch.F +
-                '（' + label + ' ' + filtered.length + '/' + scatterGroupRows.length + '场）';
             renderSlopeTable(filtered, scatterCurrentMatch.vals);
             showSlopeSummary();
         }
@@ -1061,9 +1041,6 @@
         function scatterReset() {
             if (!scatterGroupRows || !scatterCurrentMatch) return;
             scatterFiltered = null;
-            document.getElementById('scatterMorphInfo').textContent =
-                '形态：' + scatterCurrentMatch.B + '|' + scatterCurrentMatch.D + '|' + scatterCurrentMatch.F +
-                '（共' + scatterGroupRows.length + '场历史比赛）';
             renderSlopeTable(scatterGroupRows, scatterCurrentMatch.vals);
             showSlopeSummary();
         }
