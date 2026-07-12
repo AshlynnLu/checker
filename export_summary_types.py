@@ -485,17 +485,14 @@ def _compute_ai_stats(
                 }
         t["condition_ranges"] = cond_ranges
 
-        # 只用符合预测结果的行计算范围（用于判断未知比赛是否超出）
-        pred = t.get("prediction", "")
-        pred_result = ""
-        if "上" in pred:
-            pred_result = "上"
-        elif "下" in pred:
-            pred_result = "下"
-        elif "走" in pred:
-            pred_result = "走"
-
-        pred_rows = [r for r in matched_rows if r["result"] == pred_result] if pred_result else matched_rows
+        # 只用结果一致性最高的行计算范围
+        result_counts = {"上": 0, "下": 0, "走": 0}
+        for r in matched_rows:
+            res = r.get("result", "")
+            if res in result_counts:
+                result_counts[res] += 1
+        dominant_result = max(result_counts, key=result_counts.get)
+        pred_rows = [r for r in matched_rows if r["result"] == dominant_result] if result_counts[dominant_result] > 0 else matched_rows
         pred_ranges: Dict[str, Dict[str, float]] = {}
         for col in _RANGE_COLS:
             vals = [r[col] for r in pred_rows if r.get(col) is not None]
