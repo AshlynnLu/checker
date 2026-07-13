@@ -1427,14 +1427,40 @@
 
             var m1Pred = null, m1Rule = '';
 
+            function cellHas(set, val) { return !!set[val]; }
+            function cellOnlyHas(set, val) { return Object.keys(set).length === 1 && set[val]; }
+            function allCellsHave(arr, val) {
+                for (var i = 0; i < arr.length; i++) { if (!arr[i][val]) return false; }
+                return true;
+            }
+
             if (fineSummary && fineRows.length > 0) {
+                // 规则1：细筛近距离均上，远距离均上/下，且全数据近距离综合和远距离综合不均为下→上
                 if (allEqual(fineSummary.near, '上') && (allEqual(fineSummary.far, '上') || allEqual(fineSummary.far, '下'))) {
-                    m1Pred = '上'; m1Rule = '细筛近距离均上，远距离均上/下→上';
-                } else if (allEqual(fineSummary.near, '下') && allEqual(fineSummary.far, '下')) {
+                    var fullNearZhNotAllXia = !cellOnlyHas(fullSummary.near[3], '下');
+                    var fullFarZhNotAllXia = !cellOnlyHas(fullSummary.far[3], '下');
+                    if (fullNearZhNotAllXia && fullFarZhNotAllXia) {
+                        m1Pred = '上'; m1Rule = '细筛近均上，远均上/下，全数据近远综合非均下→上';
+                    }
+                }
+                // 规则1续：细筛近均下远均下
+                if (!m1Pred && allEqual(fineSummary.near, '下') && allEqual(fineSummary.far, '下')) {
                     if (coarseSummary && allEqual(coarseSummary.far, '下')) {
                         m1Pred = '下'; m1Rule = '细筛近均下远均下，初筛远均下→下';
                     } else if (coarseSummary && allEqual(coarseSummary.far, '上')) {
                         m1Pred = '上'; m1Rule = '细筛近均下远均下，初筛远均上→上';
+                    }
+                }
+                // 规则7：有细筛，细筛结果均为下，全数据远距离不均为下，初筛近距离不均为上，初筛远距离L→P和综合不均为上→下
+                if (!m1Pred && allEqual(fineSummary.near, '下') && allEqual(fineSummary.far, '下')) {
+                    var fullFarNotAllXia = !allEqual(fullSummary.far, '下');
+                    if (fullFarNotAllXia && coarseSummary) {
+                        var coarseNearNotAllShang = !allEqual(coarseSummary.near, '上');
+                        var coarseFarLPNotAllShang = !cellOnlyHas(coarseSummary.far[1], '上');
+                        var coarseFarZhNotAllShang = !cellOnlyHas(coarseSummary.far[3], '上');
+                        if (coarseNearNotAllShang && coarseFarLPNotAllShang && coarseFarZhNotAllShang) {
+                            m1Pred = '下'; m1Rule = '细筛均下，全远非均下，初筛近非均上且远L→P/综合非均上→下';
+                        }
                     }
                 }
             }
@@ -1454,9 +1480,25 @@
                 }
             }
             if (!m1Pred && coarseRows.length === 0) {
-                if (fullSummary.near[2]['上'] && Object.keys(fullSummary.near[2]).length === 1 &&
-                    fullSummary.near[3]['上'] && Object.keys(fullSummary.near[3]).length === 1) {
-                    m1Pred = '下'; m1Rule = '无初筛，全近X→Y和综合均上→下';
+                // 规则3：无初筛，全数据近远距离X→Y和综合均上→下
+                if (cellOnlyHas(fullSummary.near[2], '上') && cellOnlyHas(fullSummary.near[3], '上') &&
+                    cellOnlyHas(fullSummary.far[2], '上') && cellOnlyHas(fullSummary.far[3], '上')) {
+                    m1Pred = '下'; m1Rule = '无初筛，全近远X→Y和综合均上→下';
+                }
+                // 规则6：无初筛，全数据近距离每格都有下且至少一格有上（无走），远距离均为下→上
+                if (!m1Pred) {
+                    var nearAllHaveXia = allCellsHave(fullSummary.near, '下');
+                    var nearHasShang = false;
+                    for (var i = 0; i < fullSummary.near.length; i++) {
+                        if (fullSummary.near[i]['上']) nearHasShang = true;
+                    }
+                    var nearNoZou = true;
+                    for (var i = 0; i < fullSummary.near.length; i++) {
+                        if (fullSummary.near[i]['走']) nearNoZou = false;
+                    }
+                    if (nearAllHaveXia && nearHasShang && nearNoZou && allEqual(fullSummary.far, '下')) {
+                        m1Pred = '上'; m1Rule = '无初筛，全近每格含下且有上无走，全远均下→上';
+                    }
                 }
                 if (!m1Pred) {
                     var zc = countZouCells(fullSummary);
