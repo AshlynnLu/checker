@@ -578,7 +578,7 @@
         
         <div class="result-section" id="resultSection">
             <div class="result-card" id="summaryResult">
-                <div class="result-title">2026 手工形态汇总类型库（已人工验证）</div>
+                <div class="result-title">规则1（类型）— 2026 手工形态汇总类型库</div>
                 <div class="result-status" id="summaryStatus"></div>
                 <div class="rules-list" id="summaryRules"></div>
             </div>
@@ -687,12 +687,12 @@
             if (!summary || !summary.matched) {
                 summaryCard.className = 'result-card not-matched';
                 summaryStatus.className = 'result-status status-not-matched';
-                summaryStatus.textContent = '✗ 当前数据未命中任何 2026 汇总类型';
+                summaryStatus.textContent = '✗ 当前数据未命中任何类型规则';
                 summaryRules.innerHTML = '';
             } else {
                 summaryCard.className = 'result-card matched';
                 summaryStatus.className = 'result-status status-matched';
-                summaryStatus.textContent = `✓ 命中 ${summary.count} 条 2026 汇总类型`;
+                summaryStatus.textContent = `✓ 命中 ${summary.count} 条类型规则`;
 
                 let html = '';
                 for (const t of summary.types) {
@@ -769,6 +769,43 @@
                 }
 
                 summaryRules.innerHTML = html;
+            }
+
+            // === 规则1结论提取 ===
+            rule1Result = { pred: null, rule: '' };
+            if (summary && summary.matched && summary.types.length > 0) {
+                const validPreds = [];
+                let anyInvalid = false;
+                for (const t of summary.types) {
+                    const predText = (t.prediction || '').trim();
+                    const tip = t.tip || '';
+                    // 检查超范围
+                    const pr = t.pred_ranges || {};
+                    const prCols = Object.keys(pr);
+                    let outOfRange = false;
+                    for (const col of prCols) {
+                        const r = pr[col];
+                        const v = parseFloat(inputData[col]);
+                        if (!isNaN(v) && (v < r.min || v > r.max)) { outOfRange = true; break; }
+                    }
+                    // 有放弃条件(tip)或超范围 → 该条无效
+                    if (tip || outOfRange) { anyInvalid = true; continue; }
+                    // 提取预测方向
+                    let dir = null;
+                    if (predText.indexOf('上') !== -1) dir = '上';
+                    else if (predText.indexOf('下') !== -1) dir = '下';
+                    else if (predText.indexOf('走') !== -1) dir = '走';
+                    if (dir) validPreds.push(dir);
+                }
+                if (validPreds.length > 0 && !anyInvalid) {
+                    const allSame = validPreds.every(function(p) { return p === validPreds[0]; });
+                    if (allSame) {
+                        rule1Result = { pred: validPreds[0], rule: '类型库命中' + summary.types.length + '条，预测' + validPreds[0] + '盘' };
+                    }
+                    // 矛盾 → 无结论
+                } else if (validPreds.length > 0 && anyInvalid) {
+                    // 有有效也有无效 → 无结论
+                }
             }
 
             document.getElementById('resultSection').classList.add('show');
@@ -943,6 +980,7 @@
         let scatterCurrentMatch = null;   // {B, D, F, vals:{E,G,L,P,U,W,X}}
         let scatterGroupRows = null;      // array of rows from matched group
         let scatterFiltered = null;
+        let rule1Result = null;           // {pred: '上'/'下'/'走'/null, rule: string}
 
         const SCATTER_COLS = ['E','G','L','P','U','X','Y'];
         const SCATTER_COL_NAMES = {E:"澳上水", G:"马上水", L:"澳平", P:"马平", U:"主差", X:"澳平客差", Y:"马平客差", I:"水差", V:"平差", W:"客差"};
@@ -1587,7 +1625,19 @@
             }
             var jinxiaHtml = !jinxiaExempt ? ' <span style="color:#e53935;font-weight:bold;">禁下</span>' : '';
 
-            // === 渲染结果 ===
+            // === 规则3禁下处理：有禁下则视作无结论 ===
+            var r3HasJinxia = m2Pred && m2Pred.indexOf('走') !== -1 && !jinxiaExempt;
+            var r3Pred = r3HasJinxia ? null : m2Pred;
+            var r3Rule = r3HasJinxia ? m2Rule + '（禁下，无结论）' : m2Rule;
+
+            // === 规则1结论（从全局rule1Result获取）===
+            var r1Pred = (rule1Result && rule1Result.pred) ? rule1Result.pred : null;
+            var r1Rule = (rule1Result && rule1Result.rule) ? rule1Result.rule : '';
+            // 规则1禁下处理
+            var r1HasJinxia = r1Pred && r1Pred.indexOf('走') !== -1 && !jinxiaExempt;
+            if (r1HasJinxia) { r1Rule = r1Rule + '（禁下）'; }
+
+            // === 渲染v2.0统一预测表 ===
             var predColors = {'上':'#e53935','下':'#4caf50','走':'#ff9800'};
             var html = '<div style="border:2px solid #1976d2; border-radius:10px; padding:14px 18px; background:linear-gradient(135deg,#e3f2fd,#fff);">';
             html += '<div style="font-weight:700; font-size:15px; margin-bottom:10px; color:#1976d2;">🎯 预测结果</div>';
@@ -1598,37 +1648,58 @@
             html += '<th style="border:1px solid #ddd; padding:8px 12px; text-align:left;">依据</th>';
             html += '</tr></thead><tbody>';
 
-            function predCell(pred, rule) {
-                var hasZou = pred && pred.indexOf('走') !== -1;
-                var tag = hasZou ? jinxiaHtml : '';
+            function predCell(pred, rule, hasJinxia) {
+                var tag = hasJinxia ? jinxiaHtml : '';
                 var predHtml = pred
                     ? '<span style="color:' + (predColors[pred]||'#333') + '; font-weight:bold; font-size:16px;">' + pred + '</span>' + tag
-                    : '<span style="color:#999;">不满足条件</span>';
+                    : '<span style="color:#999;">—</span>';
                 var ruleHtml = rule ? '<span style="font-size:12px; color:#555;">' + rule + '</span>' : '<span style="color:#ccc;">—</span>';
                 return '<td style="border:1px solid #ddd; padding:8px 12px; text-align:center;">' + predHtml + '</td>'
                      + '<td style="border:1px solid #ddd; padding:8px 12px;">' + ruleHtml + '</td>';
             }
 
-            html += '<tr><td style="border:1px solid #ddd; padding:8px 12px; font-weight:bold;">方法一：斜率距离远近</td>' + predCell(m1Pred, m1Rule) + '</tr>';
-            html += '<tr><td style="border:1px solid #ddd; padding:8px 12px; font-weight:bold;">方法二：集中度统计</td>' + predCell(m2Pred, m2Rule) + '</tr>';
-            html += '</tbody></table>';
+            html += '<tr><td style="border:1px solid #ddd; padding:8px 12px; font-weight:bold;">规则1（类型）</td>' + predCell(r1Pred, r1Rule, r1HasJinxia) + '</tr>';
+            html += '<tr><td style="border:1px solid #ddd; padding:8px 12px; font-weight:bold;">规则2（斜率）</td>' + predCell(m1Pred, m1Rule, m1Pred && m1Pred.indexOf('走') !== -1 && !jinxiaExempt) + '</tr>';
+            html += '<tr><td style="border:1px solid #ddd; padding:8px 12px; font-weight:bold;">规则3（集中度）</td>' + predCell(m2Pred, m2Rule, r3HasJinxia) + '</tr>';
 
-            // 汇总行禁下标注
-            var anyZou = (m1Pred && m1Pred.indexOf('走') !== -1) || (m2Pred && m2Pred.indexOf('走') !== -1);
-            var summaryJinxia = (anyZou && !jinxiaExempt) ? ' <span style="color:#e53935;font-weight:bold;">禁下</span>' : '';
+            // === 结论行 ===
+            // 收集有效结论：规则1原值、规则2原值、规则3（禁下则无效）
+            var conclusions = [];
+            var ruleNames = [];
+            if (r1Pred) { conclusions.push(r1Pred); ruleNames.push('1'); }
+            if (m1Pred) { conclusions.push(m1Pred); ruleNames.push('2'); }
+            if (r3Pred) { conclusions.push(r3Pred); ruleNames.push('3'); }
 
-            if (m1Pred && m2Pred && m1Pred === m2Pred) {
-                html += '<div style="margin-top:10px; padding:8px 14px; background:#e8f5e9; border-radius:6px; font-weight:bold; color:#2e7d32; font-size:14px;">✅ 两种方法一致 → <span style="font-size:18px; color:' + (predColors[m1Pred]||'#333') + ';">' + m1Pred + '</span>' + (m1Pred.indexOf('走') !== -1 ? summaryJinxia : '') + '</div>';
-            } else if (m1Pred && m2Pred && m1Pred !== m2Pred) {
-                html += '<div style="margin-top:10px; padding:8px 14px; background:#fff3e0; border-radius:6px; font-weight:bold; color:#e65100; font-size:14px;">⚠️ 两种方法矛盾：方法一=<span style="color:' + (predColors[m1Pred]||'#333') + ';">' + m1Pred + '</span>，方法二=<span style="color:' + (predColors[m2Pred]||'#333') + ';">' + m2Pred + '</span>' + summaryJinxia + '</div>';
-            } else if (m1Pred || m2Pred) {
-                var which = m1Pred ? '方法一' : '方法二';
-                var pred = m1Pred || m2Pred;
-                html += '<div style="margin-top:10px; padding:8px 14px; background:#e3f2fd; border-radius:6px; font-weight:bold; color:#1565c0; font-size:14px;">→ 仅' + which + '有预测：<span style="font-size:18px; color:' + (predColors[pred]||'#333') + ';">' + pred + '</span>' + (pred.indexOf('走') !== -1 ? summaryJinxia : '') + '</div>';
-            } else {
-                html += '<div style="margin-top:10px; padding:8px 14px; background:#f5f5f5; border-radius:6px; color:#999; font-size:13px;">两种方法均不满足预测条件</div>';
+            var finalPred = null, finalBasis = '';
+            if (conclusions.length > 0) {
+                var allSame = conclusions.every(function(c) { return c === conclusions[0]; });
+                if (allSame) {
+                    finalPred = conclusions[0];
+                    finalBasis = '规则（' + ruleNames.join('、') + '）' + (conclusions.length > 1 ? '一致' : '');
+                } else {
+                    // 矛盾 → 无结论
+                    var detail = [];
+                    for (var i = 0; i < conclusions.length; i++) {
+                        detail.push('规则' + ruleNames[i] + '=' + conclusions[i]);
+                    }
+                    finalBasis = detail.join('，') + '，矛盾';
+                }
             }
 
+            // 结论禁下
+            var finalJinxia = finalPred && finalPred.indexOf('走') !== -1 && !jinxiaExempt;
+
+            html += '<tr style="background:#f0f4ff; border-top:2px solid #1976d2;">';
+            html += '<td style="border:1px solid #ddd; padding:8px 12px; font-weight:bold; color:#1976d2;">结论：</td>';
+            if (finalPred) {
+                html += '<td style="border:1px solid #ddd; padding:8px 12px; text-align:center;"><span style="color:' + (predColors[finalPred]||'#333') + '; font-weight:bold; font-size:18px;">' + finalPred + '</span>' + (finalJinxia ? jinxiaHtml : '') + '</td>';
+            } else {
+                html += '<td style="border:1px solid #ddd; padding:8px 12px; text-align:center;"><span style="color:#999;">无</span></td>';
+            }
+            html += '<td style="border:1px solid #ddd; padding:8px 12px;"><span style="font-size:12px; color:#555;">' + (finalBasis || '—') + '</span></td>';
+            html += '</tr>';
+
+            html += '</tbody></table>';
             html += '</div>';
             wrap.innerHTML = html;
             wrap.style.display = '';
