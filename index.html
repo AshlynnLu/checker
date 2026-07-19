@@ -1068,6 +1068,105 @@
             renderNormalDistCharts(scatterGroupRows, scatterCurrentMatch.vals, coarseForNorm, fineForNorm);
             var ndTitle = document.getElementById('normalDistTitle');
             if (ndTitle) ndTitle.textContent = '📊 集中度统计（全部 ' + scatterGroupRows.length + '场，初筛 ' + coarseForNorm.length + '场，细筛 ' + fineForNorm.length + '场）';
+
+            // 规则1：在scatterAdd入口也需要检查类型库并提取结论
+            rule1Result = { pred: null, rule: '' };
+            if (summaryTypesData) {
+                var summaryMatched = checkSummaryTypes(data);
+                // 更新规则1显示区域
+                var summaryCard = document.getElementById('summaryResult');
+                var summaryStatus = document.getElementById('summaryStatus');
+                var summaryRules = document.getElementById('summaryRules');
+                if (!summaryMatched || summaryMatched.length === 0) {
+                    summaryCard.className = 'result-card not-matched';
+                    summaryStatus.className = 'result-status status-not-matched';
+                    summaryStatus.textContent = '✗ 当前数据未命中任何类型规则';
+                    summaryRules.innerHTML = '';
+                } else {
+                    summaryCard.className = 'result-card matched';
+                    summaryStatus.className = 'result-status status-matched';
+                    summaryStatus.textContent = '✓ 命中 ' + summaryMatched.length + ' 条类型规则';
+                    var inputData = data;
+                    var html = '';
+                    for (var ti = 0; ti < summaryMatched.length; ti++) {
+                        var t = summaryMatched[ti];
+                        var s = t.stats || {};
+                        var shang = s.shang || 0, zou = s.zou || 0, xia = s.xia || 0;
+                        var nEff = shang + xia, nTotal = shang + xia + zou;
+                        var tip = t.tip || '';
+                        var rec = '无明显推荐', recClass = 'prediction-badge';
+                        if (nEff > 0 && shang / nEff > 0.8) { rec = '推荐：上'; recClass = 'prediction-badge shang'; }
+                        else if (nEff > 0 && xia / nEff > 0.8) { rec = '推荐：下'; recClass = 'prediction-badge xia'; }
+                        else if (nTotal > 0 && zou / nTotal === 1) { rec = '推荐：走'; recClass = 'prediction-badge zou'; }
+                        var predStr = t.prediction || '';
+                        var hasZouInRec = rec.indexOf('走') !== -1;
+                        var hasZouInPred = predStr.indexOf('走') !== -1;
+                        var jinxiaTag = '';
+                        if (hasZouInRec || hasZouInPred) {
+                            var dVal = parseFloat(inputData.D), fVal = parseFloat(inputData.F);
+                            var xVal = parseFloat(inputData.X), yVal = parseFloat(inputData.Y);
+                            var exempt = false;
+                            if (dVal === 1 && fVal === 1 && xVal < -1 && yVal < -1) exempt = true;
+                            if (dVal === 0 && fVal === 0 && xVal < -0.3 && yVal < -0.3) exempt = true;
+                            if (!exempt) jinxiaTag = ' <span style="color:#e53935;font-weight:bold;">禁下</span>';
+                        }
+                        html += '<div class="rule-item"><strong>形态：</strong>' + (t.morph || []).join('/') + '（分组：' + t.group + '）<br>';
+                        html += '<strong>特征：</strong>' + (t.feature_text || '（无）');
+                        if (rec !== '无明显推荐') html += '<span class="' + recClass + '">' + rec + '</span>';
+                        html += jinxiaTag + '<br>';
+                        html += '<strong>预测：</strong>' + (predStr || '（无）') + (hasZouInPred ? jinxiaTag : '') + '<br>';
+                        var ai = t.ai_stats || {};
+                        html += '<strong>AI统计：</strong>上' + (ai.shang||0) + ' 下' + (ai.xia||0) + ' 走' + (ai.zou||0) + '<br>';
+                        var pr = t.pred_ranges || {};
+                        var prCols = Object.keys(pr);
+                        if (prCols.length === 0) {
+                            html += '<strong>数据范围：</strong><span style="color:#999">无历史数据</span><br>';
+                        } else {
+                            var exceeded = [];
+                            for (var ci2 = 0; ci2 < prCols.length; ci2++) {
+                                var r = pr[prCols[ci2]]; var v = parseFloat(inputData[prCols[ci2]]);
+                                if (!isNaN(v) && (v < r.min || v > r.max)) {
+                                    var dir2 = v < r.min ? '低于' : '高于';
+                                    exceeded.push(r.name + '超出（' + v + ' ' + dir2 + ' ' + r.min + '~' + r.max + '）');
+                                }
+                            }
+                            html += '<strong>数据范围：</strong>' + (exceeded.length === 0 ? '<span style="color:#4caf50">范围内</span>' : '<span style="color:#e53935">' + exceeded.join('，') + '</span>') + '<br>';
+                        }
+                        if (tip) html += '<span style="color:#e53935;font-weight:600"><strong>提示：</strong>' + tip + '</span>';
+                        html += '</div>';
+                    }
+                    summaryRules.innerHTML = html;
+                    // 提取规则1结论
+                    var validPreds = [];
+                    var anyInvalid = false;
+                    for (var ti2 = 0; ti2 < summaryMatched.length; ti2++) {
+                        var t2 = summaryMatched[ti2];
+                        var predText = (t2.prediction || '').trim();
+                        var tip2 = t2.tip || '';
+                        var pr2 = t2.pred_ranges || {};
+                        var prCols2 = Object.keys(pr2);
+                        var outOfRange = false;
+                        for (var ci3 = 0; ci3 < prCols2.length; ci3++) {
+                            var r2 = pr2[prCols2[ci3]]; var v2 = parseFloat(inputData[prCols2[ci3]]);
+                            if (!isNaN(v2) && (v2 < r2.min || v2 > r2.max)) { outOfRange = true; break; }
+                        }
+                        if (tip2 || outOfRange) { anyInvalid = true; continue; }
+                        var dir3 = null;
+                        if (predText.indexOf('上') !== -1) dir3 = '上';
+                        else if (predText.indexOf('下') !== -1) dir3 = '下';
+                        else if (predText.indexOf('走') !== -1) dir3 = '走';
+                        if (dir3) validPreds.push(dir3);
+                    }
+                    if (validPreds.length > 0 && !anyInvalid) {
+                        var allSame = validPreds.every(function(p) { return p === validPreds[0]; });
+                        if (allSame) {
+                            rule1Result = { pred: validPreds[0], rule: '类型库命中' + summaryMatched.length + '条，预测' + validPreds[0] + '盘' };
+                        }
+                    }
+                }
+                document.getElementById('resultSection').classList.add('show');
+            }
+
             renderPrediction(scatterGroupRows, scatterCurrentMatch.vals, coarseForNorm, fineForNorm);
         }
 
