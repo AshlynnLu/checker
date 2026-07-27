@@ -1579,7 +1579,7 @@
                 return cnt;
             }
 
-            var m1Pred = null, m1Rule = '';
+            var m1Pred = null, m1Rule = '', m1Uncertain = false;
 
             function cellHas(set, val) { return !!set[val]; }
             function cellOnlyHas(set, val) { return Object.keys(set).length === 1 && set[val]; }
@@ -1599,8 +1599,8 @@
                 }
                 // 规则1续：细筛近均下远均下
                 if (!m1Pred && allEqual(fineSummary.near, '下') && allEqual(fineSummary.far, '下')) {
-                    if (coarseSummary && allEqual(coarseSummary.far, '下')) {
-                        m1Pred = '下'; m1Rule = '细筛近均下远均下，初筛远均下→下';
+                    if (coarseSummary && allEqual(coarseSummary.far, '下') && !allEqual(coarseSummary.near, '下')) {
+                        m1Pred = '下'; m1Rule = '细筛近均下远均下，初筛远均下且近非均下→下';
                     } else if (coarseSummary && allEqual(coarseSummary.far, '上')) {
                         m1Pred = '上'; m1Rule = '细筛近均下远均下，初筛远均上→上';
                     }
@@ -1624,7 +1624,7 @@
                 var coarseNearAllXia = allEqual(coarseSummary.near, '下');
                 var coarseFarAllXia = allEqual(coarseSummary.far, '下');
                 if (fullNoZou && fullFarNotAllXia && coarseNearAllXia && coarseFarAllXia) {
-                    m1Pred = '上'; m1Rule = '有初筛无细筛，全无走且全远非均下，初筛近远均下→上';
+                    m1Pred = '上'; m1Rule = '有初筛无细筛，全无走且全远非均下，初筛近远均下→上（与规则1、3矛盾禁下）'; m1Uncertain = true;
                 }
                 if (!m1Pred) {
                     var zc = countZouCells(fullSummary);
@@ -1653,6 +1653,18 @@
                     if (nearAllHaveXia && nearHasShang && nearNoZou && allEqual(fullSummary.far, '下')) {
                         m1Pred = '上'; m1Rule = '无初筛，全近每格含下且有上无走，全远均下→上';
                     }
+                }
+            }
+            // 规则7：有初筛时（有无细筛均可），全数据近远均至少含一个走，初筛近远均至少含一个走→上
+            if (!m1Pred && coarseSummary && coarseRows.length > 0) {
+                var fullNearHasZou = false, fullFarHasZou = false;
+                for (var i = 0; i < fullSummary.near.length; i++) { if (fullSummary.near[i]['走']) fullNearHasZou = true; }
+                for (var i = 0; i < fullSummary.far.length; i++) { if (fullSummary.far[i]['走']) fullFarHasZou = true; }
+                var coarseNearHasZou = false, coarseFarHasZou = false;
+                for (var i = 0; i < coarseSummary.near.length; i++) { if (coarseSummary.near[i]['走']) coarseNearHasZou = true; }
+                for (var i = 0; i < coarseSummary.far.length; i++) { if (coarseSummary.far[i]['走']) coarseFarHasZou = true; }
+                if (fullNearHasZou && fullFarHasZou && coarseNearHasZou && coarseFarHasZou) {
+                    m1Pred = '上'; m1Rule = '全数据与初筛近远均含走→上';
                 }
             }
 
@@ -1725,10 +1737,12 @@
             }
             var jinxiaHtml = !jinxiaExempt ? ' <span style="color:#e53935;font-weight:bold;">禁下</span>' : '';
 
-            // === 规则3禁下处理：有禁下则视作无结论 ===
+            // === 规则3禁下处理：走盘有禁下则视作无结论 ===
             var r3HasJinxia = m2Pred && m2Pred.indexOf('走') !== -1 && !jinxiaExempt;
-            var r3Pred = r3HasJinxia ? null : m2Pred;
-            var r3Rule = r3HasJinxia ? m2Rule + '（禁下，无结论）' : m2Rule;
+            // === 规则3禁下处理：下盘时马平客差(Y)>0则禁下 ===
+            var r3XiaJinxia = m2Pred === '下' && matchVals.Y > 0;
+            var r3Pred = (r3HasJinxia || r3XiaJinxia) ? null : m2Pred;
+            var r3Rule = r3HasJinxia ? m2Rule + '（禁下，无结论）' : (r3XiaJinxia ? m2Rule + '（马平客差>0，禁下，无结论）' : m2Rule);
 
             // === 规则1结论（从全局rule1Result获取）===
             var r1Pred = (rule1Result && rule1Result.pred) ? rule1Result.pred : null;
@@ -1759,8 +1773,8 @@
             }
 
             html += '<tr><td style="border:1px solid #ddd; padding:8px 12px; font-weight:bold;">规则1（类型）</td>' + predCell(r1Pred, r1Rule, r1HasJinxia) + '</tr>';
-            html += '<tr><td style="border:1px solid #ddd; padding:8px 12px; font-weight:bold;">规则2（斜率）</td>' + predCell(m1Pred, m1Rule, m1Pred && m1Pred.indexOf('走') !== -1 && !jinxiaExempt) + '</tr>';
-            html += '<tr><td style="border:1px solid #ddd; padding:8px 12px; font-weight:bold;">规则3（集中度）</td>' + predCell(m2Pred, m2Rule, r3HasJinxia) + '</tr>';
+            html += '<tr><td style="border:1px solid #ddd; padding:8px 12px; font-weight:bold;">规则2（斜率）</td>' + predCell(m1Uncertain ? m1Pred + '？' : m1Pred, m1Rule, m1Pred && m1Pred.indexOf('走') !== -1 && !jinxiaExempt) + '</tr>';
+            html += '<tr><td style="border:1px solid #ddd; padding:8px 12px; font-weight:bold;">规则3（集中度）</td>' + predCell(m2Pred, m2Rule, r3HasJinxia || r3XiaJinxia) + '</tr>';
 
             // === 结论行 ===
             // 收集有效结论：规则1原值、规则2原值、规则3（禁下则无效）
