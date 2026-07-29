@@ -728,10 +728,10 @@
                         const fVal = parseFloat(inputData.F);
                         const xVal = parseFloat(inputData.X);
                         const yVal = parseFloat(inputData.Y);
-                        let exempt = false;
-                        if (dVal === 1 && fVal === 1 && xVal < -1 && yVal < -1) exempt = true;
-                        if (dVal === 0 && fVal === 0 && xVal < -0.3 && yVal < -0.3) exempt = true;
-                        if (!exempt) jinxiaTag = ' <span style="color:#e53935;font-weight:bold;">禁下</span>';
+                        let triggered = false;
+                        if (dVal === 1 && fVal === 1 && xVal < -1 && yVal < -1) triggered = true;
+                        if (dVal === 0 && fVal === 0 && xVal < -0.3 && yVal < -0.3) triggered = true;
+                        if (triggered) jinxiaTag = ' <span style="color:#e53935;font-weight:bold;">禁下</span>';
                     }
 
                     html += `
@@ -1106,10 +1106,10 @@
                         if (hasZouInRec || hasZouInPred) {
                             var dVal = parseFloat(inputData.D), fVal = parseFloat(inputData.F);
                             var xVal = parseFloat(inputData.X), yVal = parseFloat(inputData.Y);
-                            var exempt = false;
-                            if (dVal === 1 && fVal === 1 && xVal < -1 && yVal < -1) exempt = true;
-                            if (dVal === 0 && fVal === 0 && xVal < -0.3 && yVal < -0.3) exempt = true;
-                            if (!exempt) jinxiaTag = ' <span style="color:#e53935;font-weight:bold;">禁下</span>';
+                            var triggered = false;
+                            if (dVal === 1 && fVal === 1 && xVal < -1 && yVal < -1) triggered = true;
+                            if (dVal === 0 && fVal === 0 && xVal < -0.3 && yVal < -0.3) triggered = true;
+                            if (triggered) jinxiaTag = ' <span style="color:#e53935;font-weight:bold;">禁下</span>';
                         }
                         html += '<div class="rule-item"><strong>形态：</strong>' + (t.morph || []).join('/') + '（分组：' + t.group + '）<br>';
                         html += '<strong>特征：</strong>' + (t.feature_text || '（无）');
@@ -1736,18 +1736,18 @@
                 if (zgt20 > 4 && zlt20 < 2) { m2Pred = '走'; m2Rule = '走盘' + zgt20 + '个>20%且<20%仅' + zlt20 + '个→走'; }
             }
 
-            // === 禁下判断 ===
-            var jinxiaExempt = false;
+            // === 走盘禁下判断：满足条件时标记禁下 ===
+            var jinxiaTriggered = false;
             if (scatterCurrentMatch) {
                 var dv = parseFloat(scatterCurrentMatch.D), fv = parseFloat(scatterCurrentMatch.F);
                 var xv = matchVals.X, yv = matchVals.Y;
-                if (dv === 1 && fv === 1 && xv < -1 && yv < -1) jinxiaExempt = true;
-                if (dv === 0 && fv === 0 && xv < -0.3 && yv < -0.3) jinxiaExempt = true;
+                if (dv === 1 && fv === 1 && xv < -1 && yv < -1) jinxiaTriggered = true;
+                if (dv === 0 && fv === 0 && xv < -0.3 && yv < -0.3) jinxiaTriggered = true;
             }
-            var jinxiaHtml = !jinxiaExempt ? ' <span style="color:#e53935;font-weight:bold;">禁下</span>' : '';
+            var jinxiaHtml = jinxiaTriggered ? ' <span style="color:#e53935;font-weight:bold;">禁下</span>' : '';
 
             // === 规则3禁下处理：走盘有禁下则视作无结论 ===
-            var r3HasJinxia = m2Pred && m2Pred.indexOf('走') !== -1 && !jinxiaExempt;
+            var r3HasJinxia = m2Pred && m2Pred.indexOf('走') !== -1 && jinxiaTriggered;
             // === 规则3禁下处理：下盘时马平客差(Y)>0则禁下 ===
             var r3XiaJinxia = m2Pred === '下' && matchVals.Y > 0;
             var r3Pred = (r3HasJinxia || r3XiaJinxia) ? null : m2Pred;
@@ -1757,7 +1757,7 @@
             var r1Pred = (rule1Result && rule1Result.pred) ? rule1Result.pred : null;
             var r1Rule = (rule1Result && rule1Result.rule) ? rule1Result.rule : '';
             // 规则1禁下处理
-            var r1HasJinxia = r1Pred && r1Pred.indexOf('走') !== -1 && !jinxiaExempt;
+            var r1HasJinxia = r1Pred && r1Pred.indexOf('走') !== -1 && jinxiaTriggered;
             if (r1HasJinxia) { r1Rule = r1Rule + '（禁下）'; }
 
             // === 渲染v2.0统一预测表 ===
@@ -1782,7 +1782,7 @@
             }
 
             html += '<tr><td style="border:1px solid #ddd; padding:8px 12px; font-weight:bold;">规则1（类型）</td>' + predCell(r1Pred, r1Rule, r1HasJinxia) + '</tr>';
-            html += '<tr><td style="border:1px solid #ddd; padding:8px 12px; font-weight:bold;">规则2（斜率）</td>' + predCell(m1Uncertain ? m1Pred + '？' : m1Pred, m1Rule, m1Pred && m1Pred.indexOf('走') !== -1 && !jinxiaExempt) + '</tr>';
+            html += '<tr><td style="border:1px solid #ddd; padding:8px 12px; font-weight:bold;">规则2（斜率）</td>' + predCell(m1Uncertain ? m1Pred + '？' : m1Pred, m1Rule, m1Pred && m1Pred.indexOf('走') !== -1 && jinxiaTriggered) + '</tr>';
             html += '<tr><td style="border:1px solid #ddd; padding:8px 12px; font-weight:bold;">规则3（集中度）</td>' + predCell(m2Pred, m2Rule, r3HasJinxia || r3XiaJinxia) + '</tr>';
 
             // === 结论行 ===
@@ -1810,7 +1810,7 @@
             }
 
             // 结论禁下
-            var finalJinxia = finalPred && finalPred.indexOf('走') !== -1 && !jinxiaExempt;
+            var finalJinxia = finalPred && finalPred.indexOf('走') !== -1 && jinxiaTriggered;
 
             html += '<tr style="background:#f0f4ff; border-top:2px solid #1976d2;">';
             html += '<td style="border:1px solid #ddd; padding:8px 12px; font-weight:bold; color:#1976d2;">结论：</td>';
