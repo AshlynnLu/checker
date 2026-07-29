@@ -1628,8 +1628,8 @@
                 }
                 if (!m1Pred) {
                     var zc = countZouCells(fullSummary);
-                    if (zc > 1 && coarseNearAllXia) {
-                        m1Pred = '走'; m1Rule = '有初筛无细筛，全数据走' + zc + '个>1，初筛近均下→走';
+                    if (zc > 1 && coarseFarAllXia) {
+                        m1Pred = '走'; m1Rule = '有初筛无细筛，全数据走' + zc + '个>1，初筛远均下→走';
                     }
                 }
             }
@@ -1652,6 +1652,15 @@
                     }
                     if (nearAllHaveXia && nearHasShang && nearNoZou && allEqual(fullSummary.far, '下')) {
                         m1Pred = '上'; m1Rule = '无初筛，全近每格含下且有上无走，全远均下→上';
+                    }
+                }
+                // 规则8：无初筛，全数据近距离至少一格含走，远距离至少一格含走→上
+                if (!m1Pred) {
+                    var nearHasZou8 = false, farHasZou8 = false;
+                    for (var i = 0; i < fullSummary.near.length; i++) { if (fullSummary.near[i]['走']) nearHasZou8 = true; }
+                    for (var i = 0; i < fullSummary.far.length; i++) { if (fullSummary.far[i]['走']) farHasZou8 = true; }
+                    if (nearHasZou8 && farHasZou8) {
+                        m1Pred = '上'; m1Rule = '无初筛，全近远均含走→上';
                     }
                 }
             }
