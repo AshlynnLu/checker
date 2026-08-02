@@ -1606,13 +1606,13 @@
                         m1Pred = '上'; m1Rule = '细筛近均下远均下，初筛远均上→上';
                     }
                 }
-                // 规则2：有细筛，全数据各单元格最少有一个走→上
+                // 规则2：有细筛，全数据8个单元格中至少一个含走→上
                 if (!m1Pred) {
-                    var allCellsHaveZou = true;
-                    for (var i = 0; i < fullSummary.near.length; i++) { if (!fullSummary.near[i]['走']) allCellsHaveZou = false; }
-                    for (var i = 0; i < fullSummary.far.length; i++) { if (!fullSummary.far[i]['走']) allCellsHaveZou = false; }
-                    if (allCellsHaveZou) {
-                        m1Pred = '上'; m1Rule = '有细筛，全数据各单元格均含走→上';
+                    var anyCellHasZou = false;
+                    for (var i = 0; i < fullSummary.near.length; i++) { if (fullSummary.near[i]['走']) anyCellHasZou = true; }
+                    for (var i = 0; i < fullSummary.far.length; i++) { if (fullSummary.far[i]['走']) anyCellHasZou = true; }
+                    if (anyCellHasZou) {
+                        m1Pred = '上'; m1Rule = '有细筛，全数据含走→上';
                     }
                 }
             }
@@ -1650,17 +1650,17 @@
                     }
                 }
             }
-            // === 有初筛时（有无细筛均可）===
+            // === 有初筛时（有无细筛均可）——即使有细筛但上面规则未命中，也会进入此块 ===
             if (!m1Pred && coarseSummary && coarseRows.length > 0) {
-                // 规则6：全数据近远均至少含一个走，初筛各单元格至少一个走→上
+                // 规则6：全数据近远均至少含一个走，初筛8格中至少一个含走→上
                 var fullNearHasZou = false, fullFarHasZou = false;
                 for (var i = 0; i < fullSummary.near.length; i++) { if (fullSummary.near[i]['走']) fullNearHasZou = true; }
                 for (var i = 0; i < fullSummary.far.length; i++) { if (fullSummary.far[i]['走']) fullFarHasZou = true; }
-                var coarseAllCellsHaveZou = true;
-                for (var i = 0; i < coarseSummary.near.length; i++) { if (!coarseSummary.near[i]['走']) coarseAllCellsHaveZou = false; }
-                for (var i = 0; i < coarseSummary.far.length; i++) { if (!coarseSummary.far[i]['走']) coarseAllCellsHaveZou = false; }
-                if (fullNearHasZou && fullFarHasZou && coarseAllCellsHaveZou) {
-                    m1Pred = '上'; m1Rule = '全数据近远含走，初筛各格均含走→上';
+                var coarseAnyCellHasZou = false;
+                for (var i = 0; i < coarseSummary.near.length; i++) { if (coarseSummary.near[i]['走']) coarseAnyCellHasZou = true; }
+                for (var i = 0; i < coarseSummary.far.length; i++) { if (coarseSummary.far[i]['走']) coarseAnyCellHasZou = true; }
+                if (fullNearHasZou && fullFarHasZou && coarseAnyCellHasZou) {
+                    m1Pred = '上'; m1Rule = '全数据近远含走，初筛含走→上';
                 }
                 // 规则7：全数据远距离均下，初筛远距离均下→下
                 if (!m1Pred && allEqual(fullSummary.far, '下') && allEqual(coarseSummary.far, '下')) {
