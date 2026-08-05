@@ -1590,12 +1590,13 @@
 
             // === 有细筛结果时 ===
             if (fineSummary && fineRows.length > 0) {
-                // 规则1：细筛近距离均上，远距离均上/下，且全数据近距离综合和远距离综合不均为下→上
+                // 规则1：细筛近均上，远均上/下，全数据近X→Y和综合不含下，细筛远不均为上→上
                 if (allEqual(fineSummary.near, '上') && (allEqual(fineSummary.far, '上') || allEqual(fineSummary.far, '下'))) {
-                    var fullNearZhNotAllXia = !cellOnlyHas(fullSummary.near[3], '下');
-                    var fullFarZhNotAllXia = !cellOnlyHas(fullSummary.far[3], '下');
-                    if (fullNearZhNotAllXia && fullFarZhNotAllXia) {
-                        m1Pred = '上'; m1Rule = '细筛近均上，远均上/下，全数据近远综合非均下→上';
+                    var nearXYNoXia = !fullSummary.near[2]['下'];
+                    var nearZhNoXia = !fullSummary.near[3]['下'];
+                    var fineNotAllShang = !allEqual(fineSummary.far, '上');
+                    if (nearXYNoXia && nearZhNoXia && fineNotAllShang) {
+                        m1Pred = '上'; m1Rule = '细筛近均上远均上/下，全近X→Y和综合无下，细筛远非均上→上';
                     }
                 }
                 // 规则1续：细筛近均下远均下
