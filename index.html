@@ -1616,6 +1616,19 @@
                         m1Pred = '上'; m1Rule = '有细筛，全数据含走→上';
                     }
                 }
+                // 规则8：有细筛，细筛近无走且非全上或全下，远均上→上；细筛近均下，远均上→下
+                if (!m1Pred) {
+                    var fineNearNoZou = true;
+                    for (var i = 0; i < fineSummary.near.length; i++) { if (fineSummary.near[i]['走']) fineNearNoZou = false; }
+                    var fineNearAllShang = allEqual(fineSummary.near, '上');
+                    var fineNearAllXia = allEqual(fineSummary.near, '下');
+                    var fineFarAllShang = allEqual(fineSummary.far, '上');
+                    if (fineNearNoZou && !fineNearAllShang && !fineNearAllXia && fineFarAllShang) {
+                        m1Pred = '上'; m1Rule = '细筛近无走且非全上/下，远均上→上';
+                    } else if (fineNearAllXia && fineFarAllShang) {
+                        m1Pred = '下'; m1Rule = '细筛近均下，远均上→下';
+                    }
+                }
             }
             // === 有初筛无细筛时 ===
             if (!m1Pred && coarseSummary && coarseRows.length > 0 && fineRows.length === 0) {
@@ -1626,6 +1639,15 @@
                 var coarseFarAllXia = allEqual(coarseSummary.far, '下');
                 if (fullNoZou && fullFarNotAllXia && coarseNearAllXia && coarseFarAllXia) {
                     m1Pred = '上'; m1Rule = '有初筛无细筛，全无走且全远非均下，初筛近远均下→上（与规则1、3矛盾禁下）'; m1Uncertain = true;
+                }
+                // 规则9：全数据近距离综合为下，初筛近远各格均为上→下
+                if (!m1Pred) {
+                    var fullNearZhIsXia = cellOnlyHas(fullSummary.near[3], '下');
+                    var coarseNearAllShang = allEqual(coarseSummary.near, '上');
+                    var coarseFarAllShang = allEqual(coarseSummary.far, '上');
+                    if (fullNearZhIsXia && coarseNearAllShang && coarseFarAllShang) {
+                        m1Pred = '下'; m1Rule = '有初筛无细筛，全近综合为下，初筛近远均上→下';
+                    }
                 }
             }
             // === 无初筛时 ===
