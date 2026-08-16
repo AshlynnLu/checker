@@ -507,6 +507,7 @@ def _compute_ai_stats(
 
 def build_summary_types(
     xlsx_path: str = "docs/202606欧洲FB.xlsx",
+    base_xlsx_path: str = "docs/202608欧洲FB基础数据库.xlsx",
 ) -> Dict[str, Any]:
     """构建基于"汇总"表的手工类型库（只使用人工统计 + AI统计）。"""
     raw_rules = _load_summary_sheet(xlsx_path)
@@ -570,7 +571,7 @@ def build_summary_types(
 
     # AI统计：用基本表数据验证每条规则
     print("正在从基本表加载数据进行AI统计...")
-    base_rows = _load_base_table(xlsx_path)
+    base_rows = _load_base_table(base_xlsx_path)
     print(f"  基本表数据行: {len(base_rows)}")
     _compute_ai_stats(types, base_rows)
 
@@ -589,7 +590,7 @@ def build_summary_types(
 
     return {
         "meta": {
-            "source_file": xlsx_path,
+            "source_file": base_xlsx_path,
             "sheet": "汇总",
             "total_types": len(types),
             "base_table_rows": len(base_rows),
