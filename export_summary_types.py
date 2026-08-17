@@ -507,7 +507,7 @@ def _compute_ai_stats(
 
 def build_summary_types(
     xlsx_path: str = "docs/202606欧洲FB.xlsx",
-    base_xlsx_path: str = "docs/202608欧洲FB基础数据库.xlsx",
+    base_xlsx_path: str = "docs/2026-2欧洲FB基础数据库.xlsx",
 ) -> Dict[str, Any]:
     """构建基于"汇总"表的手工类型库（只使用人工统计 + AI统计）。"""
     raw_rules = _load_summary_sheet(xlsx_path)
