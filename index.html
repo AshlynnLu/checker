@@ -1725,6 +1725,15 @@
                         m1Pred = '走'; m1Rule = '细筛所有单元格均走→走';
                     }
                 }
+                // 规则12：所有单元格均无走，初筛和细筛近均下→下
+                if (!m1Pred && coarseSummary) {
+                    var allNoZou12 = !hasZou(fullSummary);
+                    var fineNearAllXia12 = allEqual(fineSummary.near, '下');
+                    var coarseNearAllXia12 = allEqual(coarseSummary.near, '下');
+                    if (allNoZou12 && fineNearAllXia12 && coarseNearAllXia12) {
+                        m1Pred = '下'; m1Rule = '全无走，初筛细筛近均下→下';
+                    }
+                }
             }
             // === 有初筛无细筛时 ===
             if (!m1Pred && coarseSummary && coarseRows.length > 0 && fineRows.length === 0) {
@@ -1743,7 +1752,7 @@
                     var coarseNearAllShang = allEqual(coarseSummary.near, '上');
                     var coarseFarAllShang = allEqual(coarseSummary.far, '上');
                     if (fullNoZou9 && fullNearZhIsXia && coarseNearAllShang && coarseFarAllShang) {
-                        m1Pred = '下'; m1Rule = '有初筛无细筛，全无走且全近综合为下，初筛近远均上→下';
+                        m1Pred = '下'; m1Rule = '有初筛无细筛，全无走且全近综合为下，初筛近远均上→下（马会0.75禁下）';
                     }
                 }
                 // 规则5：全数据无走，初筛远均上，初筛近无走且非全上/全下，马会上水<1→上
@@ -1928,35 +1937,40 @@
             html += '<td style="border:1px solid #ddd; padding:8px 12px;"><span style="font-size:12px; color:#555;">' + r4Rule + '</span></td></tr>';
 
             // === 结论行 ===
-            var conclusions = [];
-            var ruleNames = [];
+            // 规则2/3为主，规则1仅作验证；只有规则1有结论而2/3无→无预测结果
+            var r23Conclusions = [];
+            var r23Names = [];
+            if (m1Pred) { r23Conclusions.push(m1Pred); r23Names.push('2'); }
+            if (r3Pred) { r23Conclusions.push(r3Pred); r23Names.push('3'); }
             var hasNonShangR1 = r1Pred === '非上';
-            if (r1Pred && r1Pred !== '非上') { conclusions.push(r1Pred); ruleNames.push('1'); }
-            if (m1Pred) { conclusions.push(m1Pred); ruleNames.push('2'); }
-            if (r3Pred) { conclusions.push(r3Pred); ruleNames.push('3'); }
+            var r1Dir = (r1Pred && r1Pred !== '非上') ? r1Pred : null;
 
             var finalPred = null, finalBasis = '';
-            if (conclusions.length > 0) {
-                var allSame = conclusions.every(function(c) { return c === conclusions[0]; });
+            if (r23Conclusions.length > 0) {
+                var allSame = r23Conclusions.every(function(c) { return c === r23Conclusions[0]; });
                 if (allSame) {
-                    if (hasNonShangR1 && conclusions[0] === '上') {
+                    var pred23 = r23Conclusions[0];
+                    if (r1Dir && r1Dir !== pred23) {
+                        finalBasis = '规则1=' + r1Dir + '，与规则（' + r23Names.join('、') + '）=' + pred23 + '矛盾';
+                    } else if (hasNonShangR1 && pred23 === '上') {
                         finalBasis = '规则1=非上，与上盘矛盾';
                     } else {
-                        finalPred = conclusions[0];
-                        var allNames = ruleNames.slice();
-                        if (hasNonShangR1) allNames.unshift('1');
+                        finalPred = pred23;
+                        var allNames = r23Names.slice();
+                        if (r1Dir === pred23) allNames.unshift('1');
                         finalBasis = '规则（' + allNames.join('、') + '）' + (allNames.length > 1 ? '一致' : '');
                     }
                 } else {
                     var detail = [];
+                    if (r1Dir) detail.push('规则1=' + r1Dir);
                     if (hasNonShangR1) detail.push('规则1=非上');
-                    for (var i = 0; i < conclusions.length; i++) {
-                        detail.push('规则' + ruleNames[i] + '=' + conclusions[i]);
+                    for (var i = 0; i < r23Conclusions.length; i++) {
+                        detail.push('规则' + r23Names[i] + '=' + r23Conclusions[i]);
                     }
                     finalBasis = detail.join('，') + '，矛盾';
                 }
-            } else if (hasNonShangR1) {
-                finalBasis = '规则1=非上';
+            } else if (r1Dir || hasNonShangR1) {
+                finalBasis = '仅规则1有结论，无预测结果';
             }
 
             // 结论禁下
