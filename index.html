@@ -1719,10 +1719,11 @@
                         m1Pred = '下'; m1Rule = '细筛近均上，初筛近无下→下';
                     }
                 }
-                // 规则11：细筛所有单元格均为走→走
-                if (!m1Pred) {
-                    if (allEqual(fineSummary.near, '走') && allEqual(fineSummary.far, '走')) {
-                        m1Pred = '走'; m1Rule = '细筛所有单元格均走→走';
+                // 规则11：细筛所有单元格均为走，且全数据近综合和初筛近综合均为走→走
+                if (!m1Pred && coarseSummary) {
+                    if (allEqual(fineSummary.near, '走') && allEqual(fineSummary.far, '走') &&
+                        cellOnlyHas(fullSummary.near[3], '走') && cellOnlyHas(coarseSummary.near[3], '走')) {
+                        m1Pred = '走'; m1Rule = '细筛均走且全近综合/初筛近综合均走→走';
                     }
                 }
                 // 规则12：所有单元格均无走，初筛和细筛近均下→下
