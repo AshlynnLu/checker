@@ -1662,13 +1662,12 @@
 
             // === 有细筛结果时 ===
             if (fineSummary && fineRows.length > 0) {
-                // 规则1：细筛近均上，远均上/下，全数据近X→Y和综合不含下，细筛远不均为上→上
-                if (allEqual(fineSummary.near, '上') && (allEqual(fineSummary.far, '上') || allEqual(fineSummary.far, '下'))) {
+                // 规则1：细筛近均上，远均上，全数据近X→Y和综合不含下→上
+                if (allEqual(fineSummary.near, '上') && allEqual(fineSummary.far, '上')) {
                     var nearXYNoXia = !fullSummary.near[2]['下'];
                     var nearZhNoXia = !fullSummary.near[3]['下'];
-                    var fineNotAllShang = !allEqual(fineSummary.far, '上');
-                    if (nearXYNoXia && nearZhNoXia && fineNotAllShang) {
-                        m1Pred = '上'; m1Rule = '细筛近均上远均上/下，全近X→Y和综合无下，细筛远非均上→上';
+                    if (nearXYNoXia && nearZhNoXia) {
+                        m1Pred = '上'; m1Rule = '细筛近均上远均上，全近X→Y和综合无下→上';
                     }
                 }
                 // 规则1续：细筛近均下远均下
@@ -1688,6 +1687,29 @@
                     var coarseFarNotAllShang = !coarseSummary || !allEqual(coarseSummary.far, '上');
                     if (anyCellHasZou && coarseNearZhNotZou && coarseFarNotAllShang) {
                         m1Pred = '上'; m1Rule = '有细筛，全数据含走且初筛近综合非走且初筛远非均上→上';
+                    }
+                }
+                // 规则4：细筛近均下，远不均上/均下且无走，初筛近综合下远综合上→下
+                if (!m1Pred && coarseSummary) {
+                    var fineNearAllXia4 = allEqual(fineSummary.near, '下');
+                    var fineFarNotAllShang4 = !allEqual(fineSummary.far, '上');
+                    var fineFarNotAllXia4 = !allEqual(fineSummary.far, '下');
+                    var fineFarNoZou4 = true;
+                    for (var i = 0; i < fineSummary.far.length; i++) { if (fineSummary.far[i]['走']) fineFarNoZou4 = false; }
+                    var coarseNearZhIsXia4 = cellOnlyHas(coarseSummary.near[3], '下');
+                    var coarseFarZhIsShang4 = cellOnlyHas(coarseSummary.far[3], '上');
+                    if (fineNearAllXia4 && fineFarNotAllShang4 && fineFarNotAllXia4 && fineFarNoZou4 && coarseNearZhIsXia4 && coarseFarZhIsShang4) {
+                        m1Pred = '下'; m1Rule = '细筛近均下，远非均上/下且无走，初筛近综合下远综合上→下';
+                    }
+                }
+                // 规则5：细筛近至少含一走，远均无走→走
+                if (!m1Pred) {
+                    var fineNearHasZou5 = false;
+                    for (var i = 0; i < fineSummary.near.length; i++) { if (fineSummary.near[i]['走']) fineNearHasZou5 = true; }
+                    var fineFarNoZou5 = true;
+                    for (var i = 0; i < fineSummary.far.length; i++) { if (fineSummary.far[i]['走']) fineFarNoZou5 = false; }
+                    if (fineNearHasZou5 && fineFarNoZou5) {
+                        m1Pred = '走'; m1Rule = '细筛近含走，远均无走→走';
                     }
                 }
                 // 规则6：全数据近远均至少含一个走，全近综合不为走，初筛至少一格含走→上
