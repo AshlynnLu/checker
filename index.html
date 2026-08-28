@@ -1662,20 +1662,21 @@
 
             // === 有细筛结果时 ===
             if (fineSummary && fineRows.length > 0) {
-                // 规则1：细筛近均上，远均上，全数据近X→Y和综合不含下→上
+                // 规则1：细筛近均上，远均上，全近X→Y和综合不含下，细筛远不均为上→上
                 if (allEqual(fineSummary.near, '上') && allEqual(fineSummary.far, '上')) {
                     var nearXYNoXia = !fullSummary.near[2]['下'];
                     var nearZhNoXia = !fullSummary.near[3]['下'];
-                    if (nearXYNoXia && nearZhNoXia) {
-                        m1Pred = '上'; m1Rule = '细筛近均上远均上，全近X→Y和综合无下→上';
+                    var fineNotAllShang = !allEqual(fineSummary.far, '上');
+                    if (nearXYNoXia && nearZhNoXia && fineNotAllShang) {
+                        m1Pred = '上'; m1Rule = '条件1：细筛近均上远均上，全近X→Y和综合无下，细筛远非均上→上';
                     }
                 }
                 // 规则1续：细筛近均下远均下
                 if (!m1Pred && allEqual(fineSummary.near, '下') && allEqual(fineSummary.far, '下')) {
                     if (coarseSummary && allEqual(coarseSummary.far, '下') && !allEqual(coarseSummary.near, '下')) {
-                        m1Pred = '下'; m1Rule = '细筛近均下远均下，初筛远均下且近非均下→下';
+                        m1Pred = '下'; m1Rule = '条件1：细筛近均下远均下，初筛远均下且近非均下→下';
                     } else if (coarseSummary && allEqual(coarseSummary.far, '上')) {
-                        m1Pred = '上'; m1Rule = '细筛近均下远均下，初筛远均上→上';
+                        m1Pred = '上'; m1Rule = '条件1：细筛近均下远均下，初筛远均上→上';
                     }
                 }
                 // 规则2：有细筛，全数据至少一格含走，初筛近综合不为走，初筛远各格不为上→上
@@ -1686,7 +1687,7 @@
                     var coarseNearZhNotZou = !coarseSummary || !coarseSummary.near[3]['走'];
                     var coarseFarNotAllShang = !coarseSummary || !allEqual(coarseSummary.far, '上');
                     if (anyCellHasZou && coarseNearZhNotZou && coarseFarNotAllShang) {
-                        m1Pred = '上'; m1Rule = '有细筛，全数据含走且初筛近综合非走且初筛远非均上→上';
+                        m1Pred = '上'; m1Rule = '条件2：有细筛，全数据含走且初筛近综合非走且初筛远非均上→上';
                     }
                 }
                 // 规则4：细筛近均下，远不均上/均下且无走，初筛近综合下远综合上→下
@@ -1699,7 +1700,7 @@
                     var coarseNearZhIsXia4 = cellOnlyHas(coarseSummary.near[3], '下');
                     var coarseFarZhIsShang4 = cellOnlyHas(coarseSummary.far[3], '上');
                     if (fineNearAllXia4 && fineFarNotAllShang4 && fineFarNotAllXia4 && fineFarNoZou4 && coarseNearZhIsXia4 && coarseFarZhIsShang4) {
-                        m1Pred = '下'; m1Rule = '细筛近均下，远非均上/下且无走，初筛近综合下远综合上→下';
+                        m1Pred = '下'; m1Rule = '条件4：细筛近均下，远非均上/下且无走，初筛近综合下远综合上→下';
                     }
                 }
                 // 规则5：细筛近至少含一走，远均无走→走
@@ -1709,7 +1710,7 @@
                     var fineFarNoZou5 = true;
                     for (var i = 0; i < fineSummary.far.length; i++) { if (fineSummary.far[i]['走']) fineFarNoZou5 = false; }
                     if (fineNearHasZou5 && fineFarNoZou5) {
-                        m1Pred = '走'; m1Rule = '细筛近含走，远均无走→走';
+                        m1Pred = '走'; m1Rule = '条件5：细筛近含走，远均无走→走';
                     }
                 }
                 // 规则6：全数据近远均至少含一个走，全近综合不为走，初筛至少一格含走→上
@@ -1722,7 +1723,7 @@
                     for (var i = 0; i < coarseSummary.near.length; i++) { if (coarseSummary.near[i]['走']) coarseAnyCellHasZou6 = true; }
                     for (var i = 0; i < coarseSummary.far.length; i++) { if (coarseSummary.far[i]['走']) coarseAnyCellHasZou6 = true; }
                     if (fullNearHasZou6 && fullFarHasZou6 && fullNearZhNotZou6 && coarseAnyCellHasZou6) {
-                        m1Pred = '上'; m1Rule = '全数据近远含走且近综合非走，初筛含走→上';
+                        m1Pred = '上'; m1Rule = '条件6：全数据近远含走且近综合非走，初筛含走→上';
                     }
                 }
                 // 规则8：细筛近均下，远均上→下
@@ -1730,7 +1731,7 @@
                     var fineNearAllXia = allEqual(fineSummary.near, '下');
                     var fineFarAllShang = allEqual(fineSummary.far, '上');
                     if (fineNearAllXia && fineFarAllShang) {
-                        m1Pred = '下'; m1Rule = '细筛近均下，远均上→下';
+                        m1Pred = '下'; m1Rule = '条件8：细筛近均下，远均上→下';
                     }
                 }
                 // 规则10：细筛近均上，初筛近各格都不含下→下
@@ -1738,14 +1739,14 @@
                     var coarseNearNoXia = true;
                     for (var i = 0; i < coarseSummary.near.length; i++) { if (coarseSummary.near[i]['下']) coarseNearNoXia = false; }
                     if (coarseNearNoXia) {
-                        m1Pred = '下'; m1Rule = '细筛近均上，初筛近无下→下';
+                        m1Pred = '下'; m1Rule = '条件10：细筛近均上，初筛近无下→下';
                     }
                 }
                 // 规则11：细筛所有单元格均为走，且全数据近综合和初筛近综合均为走→走
                 if (!m1Pred && coarseSummary) {
                     if (allEqual(fineSummary.near, '走') && allEqual(fineSummary.far, '走') &&
                         cellOnlyHas(fullSummary.near[3], '走') && cellOnlyHas(coarseSummary.near[3], '走')) {
-                        m1Pred = '走'; m1Rule = '细筛均走且全近综合/初筛近综合均走→走';
+                        m1Pred = '走'; m1Rule = '条件11：细筛均走且全近综合/初筛近综合均走→走';
                     }
                 }
                 // 规则12：所有单元格均无走，初筛和细筛近均下→下
@@ -1754,7 +1755,7 @@
                     var fineNearAllXia12 = allEqual(fineSummary.near, '下');
                     var coarseNearAllXia12 = allEqual(coarseSummary.near, '下');
                     if (allNoZou12 && fineNearAllXia12 && coarseNearAllXia12) {
-                        m1Pred = '下'; m1Rule = '全无走，初筛细筛近均下→下';
+                        m1Pred = '下'; m1Rule = '条件12：全无走，初筛细筛近均下→下';
                     }
                 }
             }
@@ -1766,7 +1767,7 @@
                 var coarseNearAllXia = allEqual(coarseSummary.near, '下');
                 var coarseFarAllXia = allEqual(coarseSummary.far, '下');
                 if (fullNoZou && fullNearAllHaveShang && coarseNearAllXia && coarseFarAllXia) {
-                    m1Pred = '上'; m1Rule = '有初筛无细筛，全无走且全近各格含上，初筛近远均下→上（马会1.25禁下）';
+                    m1Pred = '上'; m1Rule = '条件3：有初筛无细筛，全无走且全近各格含上，初筛近远均下→上（马会1.25禁下）';
                 }
                 // 规则9：全数据无走且近各格均含下，初筛近远各格均为上→下
                 if (!m1Pred) {
@@ -1775,7 +1776,17 @@
                     var coarseNearAllShang = allEqual(coarseSummary.near, '上');
                     var coarseFarAllShang = allEqual(coarseSummary.far, '上');
                     if (fullNoZou9 && fullNearAllHaveXia && coarseNearAllShang && coarseFarAllShang) {
-                        m1Pred = '下'; m1Rule = '有初筛无细筛，全无走且全近各格含下，初筛近远均上→下（马会0.75禁下）';
+                        m1Pred = '下'; m1Rule = '条件9：有初筛无细筛，全无走且全近各格含下，初筛近远均上→下（马会0.75禁下）';
+                    }
+                }
+                // 规则13：全近各格至少含一上一下一走，初筛各格均为上→上
+                if (!m1Pred) {
+                    var nearAllHaveShang13 = allCellsHave(fullSummary.near, '上');
+                    var nearAllHaveXia13 = allCellsHave(fullSummary.near, '下');
+                    var nearAllHaveZou13 = allCellsHave(fullSummary.near, '走');
+                    var coarseAllShang13 = allEqual(coarseSummary.near, '上') && allEqual(coarseSummary.far, '上');
+                    if (nearAllHaveShang13 && nearAllHaveXia13 && nearAllHaveZou13 && coarseAllShang13) {
+                        m1Pred = '上'; m1Rule = '条件13：全近各格含上下走，初筛均上→上';
                     }
                 }
             }
@@ -1783,7 +1794,16 @@
             if (!m1Pred && coarseSummary && coarseRows.length > 0) {
                 // 规则7：全数据远距离均下，初筛远距离均下→下
                 if (allEqual(fullSummary.far, '下') && allEqual(coarseSummary.far, '下')) {
-                    m1Pred = '下'; m1Rule = '全远均下，初筛远均下→下';
+                    m1Pred = '下'; m1Rule = '条件7：全远均下，初筛远均下→下';
+                }
+            }
+            // === 无初筛时 ===
+            if (!m1Pred && coarseRows.length === 0) {
+                // 规则14：全均上→上；全均下→下
+                if (allEqual(fullSummary.near, '上') && allEqual(fullSummary.far, '上')) {
+                    m1Pred = '上'; m1Rule = '条件14：无初筛，全数据各格均上→上';
+                } else if (allEqual(fullSummary.near, '下') && allEqual(fullSummary.far, '下')) {
+                    m1Pred = '下'; m1Rule = '条件14：无初筛，全数据各格均下→下';
                 }
             }
 
@@ -1939,49 +1959,45 @@
             html += '<td style="border:1px solid #ddd; padding:8px 12px;"><span style="font-size:12px; color:#555;">' + r4Rule + '</span></td></tr>';
 
             // === 结论行 ===
-            // 规则2/3为主，规则1仅作验证；只有规则1有结论而2/3无→无预测结果
-            var r23Conclusions = [];
-            var r23Names = [];
-            if (m1Pred) { r23Conclusions.push(m1Pred); r23Names.push('2'); }
-            if (r3Pred) { r23Conclusions.push(r3Pred); r23Names.push('3'); }
-            var hasNonShangR1 = r1Pred === '非上';
+            // v5.0结论逻辑：
+            // 下：规则1/2/3中预测结果单一或重复出现，且相同为下
+            // 上：规则1/2/3中预测结果重复出现（至少2个），且相同为上
+            // 下+0.3走：规则3为走，且V列在±0.1范围内
+            // 上：规则3为走但标注禁下，且G<0.9
             var r1Dir = (r1Pred && r1Pred !== '非上') ? r1Pred : null;
+            var allConclusions = [];
+            var allNames = [];
+            if (r1Dir) { allConclusions.push(r1Dir); allNames.push('1'); }
+            if (m1Pred) { allConclusions.push(m1Pred); allNames.push('2'); }
+            if (r3Pred) { allConclusions.push(r3Pred); allNames.push('3'); }
 
             var finalPred = null, finalBasis = '';
-            if (r23Conclusions.length > 0) {
-                var allSame = r23Conclusions.every(function(c) { return c === r23Conclusions[0]; });
-                if (allSame) {
-                    var pred23 = r23Conclusions[0];
-                    if (r1Dir && r1Dir !== pred23) {
-                        finalBasis = '规则1=' + r1Dir + '，与规则（' + r23Names.join('、') + '）=' + pred23 + '矛盾';
-                    } else if (hasNonShangR1 && pred23 === '上') {
-                        finalBasis = '规则1=非上，与上盘矛盾';
-                    } else {
-                        finalPred = pred23;
-                        var allNames = r23Names.slice();
-                        if (r1Dir === pred23) allNames.unshift('1');
-                        finalBasis = '规则（' + allNames.join('、') + '）' + (allNames.length > 1 ? '一致' : '');
-                    }
-                } else {
-                    var detail = [];
-                    if (r1Dir) detail.push('规则1=' + r1Dir);
-                    if (hasNonShangR1) detail.push('规则1=非上');
-                    for (var i = 0; i < r23Conclusions.length; i++) {
-                        detail.push('规则' + r23Names[i] + '=' + r23Conclusions[i]);
-                    }
-                    finalBasis = detail.join('，') + '，矛盾';
-                }
-            } else if (r1Dir || hasNonShangR1) {
-                finalBasis = '仅规则1有结论，无预测结果';
-            }
 
-            // 结论禁下
-            var finalJinxia = finalPred && finalPred.indexOf('走') !== -1 && jinxiaTriggered;
+            // 特殊情况1：规则3为走+禁下+G<0.9→上
+            if (m2Pred === '走' && (r3HasJinxia || r3XiaJinxia) && matchVals.G < 0.9) {
+                finalPred = '上'; finalBasis = '规则3走+禁下，马上水<0.9→上';
+            }
+            // 特殊情况2：规则3为走（未被禁下），V列±0.1→下+0.3走
+            if (!finalPred && r3Pred === '走' && Math.abs(matchVals.V) <= 0.1) {
+                finalPred = '下+0.3走'; finalBasis = '规则3走，平差±0.1→下+0.3走';
+            }
+            // 常规情况：所有结论相同
+            if (!finalPred && allConclusions.length > 0) {
+                var allSame = allConclusions.every(function(c) { return c === allConclusions[0]; });
+                if (allSame && allConclusions[0] === '下') {
+                    finalPred = '下';
+                    finalBasis = '规则（' + allNames.join('、') + '）' + (allNames.length > 1 ? '一致' : '');
+                } else if (allSame && allConclusions[0] === '上' && allConclusions.length >= 2) {
+                    finalPred = '上';
+                    finalBasis = '规则（' + allNames.join('、') + '）一致';
+                }
+            }
 
             html += '<tr style="background:#f0f4ff; border-top:2px solid #1976d2;">';
             html += '<td style="border:1px solid #ddd; padding:8px 12px; font-weight:bold; color:#1976d2;">结论：</td>';
             if (finalPred) {
-                html += '<td style="border:1px solid #ddd; padding:8px 12px; text-align:center;"><span style="color:' + (predColors[finalPred]||'#333') + '; font-weight:bold; font-size:18px;">' + finalPred + '</span>' + (finalJinxia ? jinxiaHtml : '') + '</td>';
+                var finalColor = finalPred === '上' ? '#e53935' : (finalPred === '下' ? '#4caf50' : '#333');
+                html += '<td style="border:1px solid #ddd; padding:8px 12px; text-align:center;"><span style="color:' + finalColor + '; font-weight:bold; font-size:18px;">' + finalPred + '</span></td>';
             } else {
                 html += '<td style="border:1px solid #ddd; padding:8px 12px; text-align:center;"><span style="color:#999;">无</span></td>';
             }
