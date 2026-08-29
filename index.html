@@ -1959,37 +1959,35 @@
             html += '<td style="border:1px solid #ddd; padding:8px 12px;"><span style="font-size:12px; color:#555;">' + r4Rule + '</span></td></tr>';
 
             // === 结论行 ===
-            // v5.0结论逻辑：
-            // 下：规则1/2/3中预测结果单一或重复出现，且相同为下
-            // 上：规则1/2/3中预测结果重复出现（至少2个），且相同为上
-            // 下+0.3走：规则3为走，且V列在±0.1范围内
-            // 上：规则3为走但标注禁下，且G<0.9
+            // v5.0结论逻辑：用m2Pred(规则3原始结果)参与结论判断，禁下不影响结论归类
             var r1Dir = (r1Pred && r1Pred !== '非上') ? r1Pred : null;
             var allConclusions = [];
             var allNames = [];
             if (r1Dir) { allConclusions.push(r1Dir); allNames.push('1'); }
             if (m1Pred) { allConclusions.push(m1Pred); allNames.push('2'); }
-            if (r3Pred) { allConclusions.push(r3Pred); allNames.push('3'); }
+            if (m2Pred) { allConclusions.push(m2Pred); allNames.push('3'); }
 
             var finalPred = null, finalBasis = '';
+            var allSame = allConclusions.length > 0 && allConclusions.every(function(c) { return c === allConclusions[0]; });
 
-            // 特殊情况1：规则3为走+禁下+G<0.9→上
-            if (m2Pred === '走' && (r3HasJinxia || r3XiaJinxia) && matchVals.G < 0.9) {
-                finalPred = '上'; finalBasis = '规则3走+禁下，马上水<0.9→上';
-            }
-            // 特殊情况2：规则3为走（未被禁下），V列±0.1→下+0.3走
-            if (!finalPred && r3Pred === '走' && Math.abs(matchVals.V) <= 0.1) {
-                finalPred = '下+0.3走'; finalBasis = '规则3走，平差±0.1→下+0.3走';
-            }
-            // 常规情况：所有结论相同
-            if (!finalPred && allConclusions.length > 0) {
-                var allSame = allConclusions.every(function(c) { return c === allConclusions[0]; });
-                if (allSame && allConclusions[0] === '下') {
-                    finalPred = '下';
-                    finalBasis = '规则（' + allNames.join('、') + '）' + (allNames.length > 1 ? '一致' : '');
-                } else if (allSame && allConclusions[0] === '上' && allConclusions.length >= 2) {
-                    finalPred = '上';
-                    finalBasis = '规则（' + allNames.join('、') + '）一致';
+            // 先检查是否矛盾（结论不一致）
+            if (allConclusions.length > 0 && !allSame) {
+                // 矛盾，无结论
+                finalPred = null; finalBasis = '';
+            } else if (allSame && allConclusions[0] === '下') {
+                // 下：单一或重复出现且相同为下
+                finalPred = '下';
+                finalBasis = '规则（' + allNames.join('、') + '）' + (allNames.length > 1 ? '一致' : '');
+            } else if (allSame && allConclusions[0] === '上' && allConclusions.length >= 2) {
+                // 上：重复出现（至少2个）且相同为上
+                finalPred = '上';
+                finalBasis = '规则（' + allNames.join('、') + '）一致';
+            } else if (allSame && allConclusions[0] === '走') {
+                // 走不直接作为结论，检查特殊情况
+                if (m2Pred === '走' && (r3HasJinxia || r3XiaJinxia) && matchVals.G < 0.9) {
+                    finalPred = '上'; finalBasis = '规则3走+禁下，马上水<0.9→上';
+                } else if (m2Pred === '走' && Math.abs(matchVals.V) <= 0.1) {
+                    finalPred = '下+0.3走'; finalBasis = '规则3走，平差±0.1→下+0.3走';
                 }
             }
 
