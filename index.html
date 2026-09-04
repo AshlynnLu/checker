@@ -1789,6 +1789,22 @@
                         m1Pred = '上'; m1Rule = '条件13：全近各格含上下走，初筛均上→上';
                     }
                 }
+                // 规则15：初筛近均下，远无走且含上含下，全数据无走且近远都非均上/均下→下
+                if (!m1Pred) {
+                    var coarseNearAllXia15 = allEqual(coarseSummary.near, '下');
+                    var coarseFarNoZou15 = true, coarseFarHasShang15 = false, coarseFarHasXia15 = false;
+                    for (var i = 0; i < coarseSummary.far.length; i++) {
+                        if (coarseSummary.far[i]['走']) coarseFarNoZou15 = false;
+                        if (coarseSummary.far[i]['上']) coarseFarHasShang15 = true;
+                        if (coarseSummary.far[i]['下']) coarseFarHasXia15 = true;
+                    }
+                    var fullNoZou15 = !hasZou(fullSummary);
+                    var fullNearNotAll15 = !allEqual(fullSummary.near, '上') && !allEqual(fullSummary.near, '下');
+                    var fullFarNotAll15 = !allEqual(fullSummary.far, '上') && !allEqual(fullSummary.far, '下');
+                    if (coarseNearAllXia15 && coarseFarNoZou15 && coarseFarHasShang15 && coarseFarHasXia15 && fullNoZou15 && fullNearNotAll15 && fullFarNotAll15) {
+                        m1Pred = '下'; m1Rule = '条件15：初筛近均下，远无走含上下，全无走且近远非均上/下→下';
+                    }
+                }
             }
             // === 有初筛时（有无细筛均可）——即使有细筛但上面规则未命中，也会进入此块 ===
             if (!m1Pred && coarseSummary && coarseRows.length > 0) {
