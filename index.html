@@ -1892,28 +1892,15 @@
             }
             var jinxiaHtml = jinxiaTriggered ? ' <span style="color:#e53935;font-weight:bold;">禁下</span>' : '';
 
-            // === 规则3禁下处理：走盘有禁下则视作无结论 ===
+            // === 规则3禁下处理：走盘有禁下 ===
             var r3HasJinxia = m2Pred && m2Pred.indexOf('走') !== -1 && jinxiaTriggered;
-            // === 规则3禁下处理：下盘时三种禁下条件 ===
+            // === 规则3禁下处理：下盘禁下条件 ===
             var r3XiaJinxia = false;
-            var r3XiaJinxiaReason = '';
             if (m2Pred === '下') {
                 if (matchVals.Y > 0) {
-                    r3XiaJinxia = true; r3XiaJinxiaReason = '马平客差>0';
-                }
-                if (scatterCurrentMatch) {
-                    var ev3 = matchVals.E, gv3 = matchVals.G, iv3 = matchVals.I;
-                    var fv3 = parseFloat(scatterCurrentMatch.F), pv3 = matchVals.P;
-                    if (ev3 > 0.99 && gv3 > 0.9 && iv3 > 0.03) {
-                        r3XiaJinxia = true; r3XiaJinxiaReason = '澳上>0.99且马上>0.9且水差>0.03';
-                    }
-                    if (fv3 === 0.25 && iv3 > 0.03 && pv3 > 3.1) {
-                        r3XiaJinxia = true; r3XiaJinxiaReason = '马会0.25且水差>0.03且马平>3.1';
-                    }
+                    r3XiaJinxia = true;
                 }
             }
-            var r3Pred = (r3HasJinxia || r3XiaJinxia) ? null : m2Pred;
-            var r3Rule = r3HasJinxia ? m2Rule + '（禁下，无结论）' : (r3XiaJinxia ? m2Rule + '（' + r3XiaJinxiaReason + '，禁下，无结论）' : m2Rule);
 
             // === 规则1结论（从全局rule1Result获取）===
             var r1Pred = (rule1Result && rule1Result.pred) ? rule1Result.pred : null;
@@ -1921,6 +1908,62 @@
             // 规则1禁下处理
             var r1HasJinxia = r1Pred && r1Pred.indexOf('走') !== -1 && jinxiaTriggered;
             if (r1HasJinxia) { r1Rule = r1Rule + '（禁下）'; }
+
+            // === v6.0 结论逻辑 ===
+            var finalPred = null, finalBasis = '';
+            var conclusionJinxia = false;
+            if (scatterCurrentMatch) {
+                var cD = parseFloat(scatterCurrentMatch.D);
+                var cF = parseFloat(scatterCurrentMatch.F);
+                var cB = scatterCurrentMatch.B;
+                var cH = parseFloat(document.getElementById('H').value);
+                var cI = matchVals.I;
+                var cU = matchVals.U;
+                var cG = matchVals.G;
+                var cP = matchVals.P;
+
+                // 条件1: 规则2或规则3=下 + F<1.5 + G>0.75 → 下
+                if (!finalPred && (m1Pred === '下' || m2Pred === '下') && cF < 1.5 && cG > 0.75) {
+                    finalPred = '下';
+                    var whichRules = [];
+                    if (m1Pred === '下') whichRules.push('2');
+                    if (m2Pred === '下') whichRules.push('3');
+                    finalBasis = '规则（' + whichRules.join('、') + '）预测下，马会<1.5且马上水>0.75';
+                }
+                // 条件2: 规则3=走, B=客, P<3 → 走
+                if (!finalPred && m2Pred === '走' && cB === '客' && cP < 3) {
+                    finalPred = '走'; finalBasis = '规则3走，弱队客且马平<3';
+                }
+                // 条件3: 规则2=上, 规则3=走, F=0 → 下+0.3走
+                if (!finalPred && m1Pred === '上' && m2Pred === '走' && cF === 0) {
+                    finalPred = '下+0.3走'; finalBasis = '规则2上+规则3走，马会=0';
+                }
+                // 条件4: D=F=0, I>0, U<-0.2 → 下
+                if (!finalPred && cD === 0 && cF === 0 && cI > 0 && cU < -0.2) {
+                    finalPred = '下'; finalBasis = '平手盘水差＞0主差＜-0.2';
+                }
+                // 条件5: H=0.25, I>0.37 → 上
+                if (!finalPred && cH === 0.25 && cI > 0.37) {
+                    finalPred = '上'; finalBasis = '盘差0.25水差＞0.37';
+                }
+                // 条件6: H=-0.25, I<-0.43 → 上
+                if (!finalPred && cH === -0.25 && cI < -0.43) {
+                    finalPred = '上'; finalBasis = '盘差-0.25水差＜-0.43';
+                }
+                // 条件7: H=0, I>0.15, U<-0.1 → 下
+                if (!finalPred && cH === 0 && cI > 0.15 && cU < -0.1) {
+                    finalPred = '下'; finalBasis = '盘差0水差＞0.15，主差＜-0.1';
+                }
+
+                // 结论禁下: conclusion含下 + 规则3=下 + F=0.25 + 0.04<I<0.09
+                if (finalPred && finalPred.indexOf('下') !== -1 && m2Pred === '下' && cF === 0.25 && cI > 0.04 && cI < 0.09) {
+                    conclusionJinxia = true;
+                }
+                // 走盘结论禁下
+                if (finalPred && finalPred.indexOf('走') !== -1 && jinxiaTriggered) {
+                    conclusionJinxia = true;
+                }
+            }
 
             // === 渲染v2.0统一预测表 ===
             var predColors = {'上':'#e53935','下':'#4caf50','走':'#ff9800'};
@@ -1975,43 +2018,12 @@
             html += '<td style="border:1px solid #ddd; padding:8px 12px;"><span style="font-size:12px; color:#555;">' + r4Rule + '</span></td></tr>';
 
             // === 结论行 ===
-            // v5.0结论逻辑：用m2Pred(规则3原始结果)参与结论判断，禁下不影响结论归类
-            var r1Dir = (r1Pred && r1Pred !== '非上') ? r1Pred : null;
-            var allConclusions = [];
-            var allNames = [];
-            if (r1Dir) { allConclusions.push(r1Dir); allNames.push('1'); }
-            if (m1Pred) { allConclusions.push(m1Pred); allNames.push('2'); }
-            if (m2Pred) { allConclusions.push(m2Pred); allNames.push('3'); }
-
-            var finalPred = null, finalBasis = '';
-            var allSame = allConclusions.length > 0 && allConclusions.every(function(c) { return c === allConclusions[0]; });
-
-            // 先检查是否矛盾（结论不一致）
-            if (allConclusions.length > 0 && !allSame) {
-                // 矛盾，无结论
-                finalPred = null; finalBasis = '';
-            } else if (allSame && allConclusions[0] === '下') {
-                // 下：单一或重复出现且相同为下
-                finalPred = '下';
-                finalBasis = '规则（' + allNames.join('、') + '）' + (allNames.length > 1 ? '一致' : '');
-            } else if (allSame && allConclusions[0] === '上' && allConclusions.length >= 2) {
-                // 上：重复出现（至少2个）且相同为上
-                finalPred = '上';
-                finalBasis = '规则（' + allNames.join('、') + '）一致';
-            } else if (allSame && allConclusions[0] === '走') {
-                // 走不直接作为结论，检查特殊情况
-                if (m2Pred === '走' && (r3HasJinxia || r3XiaJinxia) && matchVals.G < 0.9) {
-                    finalPred = '上'; finalBasis = '规则3走+禁下，马上水<0.9→上';
-                } else if (m2Pred === '走' && Math.abs(matchVals.V) <= 0.1) {
-                    finalPred = '下+0.3走'; finalBasis = '规则3走，平差±0.1→下+0.3走';
-                }
-            }
-
+            var conclusionJinxiaHtml = conclusionJinxia ? ' <span style="color:#e53935;font-weight:bold;">禁下</span>' : '';
             html += '<tr style="background:#f0f4ff; border-top:2px solid #1976d2;">';
             html += '<td style="border:1px solid #ddd; padding:8px 12px; font-weight:bold; color:#1976d2;">结论：</td>';
             if (finalPred) {
                 var finalColor = finalPred === '上' ? '#e53935' : (finalPred === '下' ? '#4caf50' : '#333');
-                html += '<td style="border:1px solid #ddd; padding:8px 12px; text-align:center;"><span style="color:' + finalColor + '; font-weight:bold; font-size:18px;">' + finalPred + '</span></td>';
+                html += '<td style="border:1px solid #ddd; padding:8px 12px; text-align:center;"><span style="color:' + finalColor + '; font-weight:bold; font-size:18px;">' + finalPred + '</span>' + conclusionJinxiaHtml + '</td>';
             } else {
                 html += '<td style="border:1px solid #ddd; padding:8px 12px; text-align:center;"><span style="color:#999;">无</span></td>';
             }
