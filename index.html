@@ -1997,25 +1997,34 @@
 
             // === 规则4（条件删选）===
             var r4Shang = 0, r4Xia = 0, r4Zou = 0;
+            var r4Sequence = [];
             for (var ri = 0; ri < allRows.length; ri++) {
                 var row = allRows[ri];
                 if (Math.abs(row[2] - matchVals.L) <= 0.1 && Math.abs(row[3] - matchVals.P) <= 0.1 &&
-                    Math.abs(row[4] - matchVals.U) <= 0.05 &&
+                    Math.abs(row[4] - matchVals.U) <= 0.02 &&
                     Math.abs(row[5] - matchVals.X) <= 0.1 && Math.abs(row[6] - matchVals.Y) <= 0.1) {
                     var res = row[10];
                     if (res === '上') r4Shang++;
                     else if (res === '下') r4Xia++;
                     else if (res === '走') r4Zou++;
+                    r4Sequence.push(res);
                 }
             }
             var r4Total = r4Shang + r4Xia + r4Zou;
             var r4Text = r4Total > 0
-                ? '<span style="color:#e53935;font-weight:bold;">上' + r4Shang + '</span> / <span style="color:#4caf50;font-weight:bold;">下' + r4Xia + '</span> / <span style="color:#ff9800;font-weight:bold;">走' + r4Zou + '</span>（共' + r4Total + '场）'
+                ? '<span style="color:#e53935;font-weight:bold;">上' + r4Shang + '</span><span style="color:#ff9800;font-weight:bold;">走' + r4Zou + '</span><span style="color:#4caf50;font-weight:bold;">下' + r4Xia + '</span>（共' + r4Total + '场）'
                 : '<span style="color:#999;">无匹配数据</span>';
-            var r4Rule = 'D/F相同，L/P±0.1，U±0.05，X/Y±0.1';
+            var r4SeqHtml = '';
+            if (r4Sequence.length > 0) {
+                var seqColors = {'上':'#e53935','下':'#4caf50','走':'#ff9800'};
+                for (var si = 0; si < r4Sequence.length; si++) {
+                    r4SeqHtml += '<span style="color:' + (seqColors[r4Sequence[si]]||'#333') + ';font-weight:bold;">' + r4Sequence[si] + '</span>';
+                }
+            }
+            var r4Rule = 'B/D/F相同，L/P±0.1，U±0.02，X/Y±0.1';
             html += '<tr><td style="border:1px solid #ddd; padding:8px 12px; font-weight:bold;">规则4（条件删选）</td>';
             html += '<td style="border:1px solid #ddd; padding:8px 12px; text-align:center;">' + r4Text + '</td>';
-            html += '<td style="border:1px solid #ddd; padding:8px 12px;"><span style="font-size:12px; color:#555;">' + r4Rule + '</span></td></tr>';
+            html += '<td style="border:1px solid #ddd; padding:8px 12px;"><span style="font-size:12px; color:#555;">' + r4Rule + (r4SeqHtml ? '　' + r4SeqHtml : '') + '</span></td></tr>';
 
             // === 结论行 ===
             var conclusionJinxiaHtml = conclusionJinxia ? ' <span style="color:#e53935;font-weight:bold;">禁下</span>' : '';
