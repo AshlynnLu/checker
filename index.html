@@ -1662,14 +1662,9 @@
 
             // === 有细筛结果时 ===
             if (fineSummary && fineRows.length > 0) {
-                // 规则1：细筛近均上，远均上，全近X→Y和综合不含下，细筛远不均为上→上
+                // 规则1：细筛近均上，远均上→上
                 if (allEqual(fineSummary.near, '上') && allEqual(fineSummary.far, '上')) {
-                    var nearXYNoXia = !fullSummary.near[2]['下'];
-                    var nearZhNoXia = !fullSummary.near[3]['下'];
-                    var fineNotAllShang = !allEqual(fineSummary.far, '上');
-                    if (nearXYNoXia && nearZhNoXia && fineNotAllShang) {
-                        m1Pred = '上'; m1Rule = '条件1：细筛近均上远均上，全近X→Y和综合无下，细筛远非均上→上';
-                    }
+                    m1Pred = '上'; m1Rule = '条件1：细筛近均上远均上→上';
                 }
                 // 规则1续：细筛近均下远均下
                 if (!m1Pred && allEqual(fineSummary.near, '下') && allEqual(fineSummary.far, '下')) {
@@ -1734,12 +1729,16 @@
                         m1Pred = '下'; m1Rule = '条件8：细筛近均下，远均上→下';
                     }
                 }
-                // 规则10：细筛近均上，初筛近各格都不含下→下
-                if (!m1Pred && allEqual(fineSummary.near, '上') && coarseSummary) {
-                    var coarseNearNoXia = true;
-                    for (var i = 0; i < coarseSummary.near.length; i++) { if (coarseSummary.near[i]['下']) coarseNearNoXia = false; }
-                    if (coarseNearNoXia) {
-                        m1Pred = '下'; m1Rule = '条件10：细筛近均上，初筛近无下→下';
+                // 规则10：细筛近各格不含下，初筛近各格都不含下→下
+                if (!m1Pred) {
+                    var fineNearNoXia10 = true;
+                    for (var i = 0; i < fineSummary.near.length; i++) { if (fineSummary.near[i]['下']) fineNearNoXia10 = false; }
+                    var coarseNearNoXia10 = true;
+                    if (coarseSummary) {
+                        for (var i = 0; i < coarseSummary.near.length; i++) { if (coarseSummary.near[i]['下']) coarseNearNoXia10 = false; }
+                    }
+                    if (fineNearNoXia10 && coarseNearNoXia10) {
+                        m1Pred = '下'; m1Rule = '条件10：细筛近无下，初筛近无下→下';
                     }
                 }
                 // 规则11：细筛所有单元格均为走，且全数据近综合和初筛近综合均为走→走
@@ -1749,13 +1748,38 @@
                         m1Pred = '走'; m1Rule = '条件11：细筛均走且全近综合/初筛近综合均走→走';
                     }
                 }
-                // 规则12：所有单元格均无走，初筛和细筛近均下→下
+                // 规则12：所有单元格均无走，全远均下，初筛和细筛近均下→下
                 if (!m1Pred && coarseSummary) {
                     var allNoZou12 = !hasZou(fullSummary);
+                    var fullFarAllXia12 = allEqual(fullSummary.far, '下');
                     var fineNearAllXia12 = allEqual(fineSummary.near, '下');
                     var coarseNearAllXia12 = allEqual(coarseSummary.near, '下');
-                    if (allNoZou12 && fineNearAllXia12 && coarseNearAllXia12) {
-                        m1Pred = '下'; m1Rule = '条件12：全无走，初筛细筛近均下→下';
+                    if (allNoZou12 && fullFarAllXia12 && fineNearAllXia12 && coarseNearAllXia12) {
+                        m1Pred = '下'; m1Rule = '条件12：全无走，全远均下，初筛细筛近均下→下';
+                    }
+                }
+                // 规则17：细筛近均上，初筛远/全近/全远/初筛近各组不均上不均下且无走→上
+                if (!m1Pred && coarseSummary) {
+                    var fineNearAllShang17 = allEqual(fineSummary.near, '上');
+                    if (fineNearAllShang17) {
+                        var groups17 = [coarseSummary.far, fullSummary.near, fullSummary.far, coarseSummary.near];
+                        var allGroupsPass17 = true;
+                        for (var g = 0; g < groups17.length; g++) {
+                            var grp = groups17[g];
+                            if (allEqual(grp, '上') || allEqual(grp, '下')) { allGroupsPass17 = false; break; }
+                            var grpHasZou = false;
+                            for (var i = 0; i < grp.length; i++) { if (grp[i]['走']) grpHasZou = true; }
+                            if (grpHasZou) { allGroupsPass17 = false; break; }
+                        }
+                        if (allGroupsPass17) {
+                            m1Pred = '上'; m1Rule = '条件17：细筛近均上，初筛远/全近/全远/初筛近各组非均上下且无走→上';
+                        }
+                    }
+                }
+                // 规则7：全数据远距离均下，初筛远距离均下→下
+                if (!m1Pred && coarseSummary) {
+                    if (allEqual(fullSummary.far, '下') && allEqual(coarseSummary.far, '下')) {
+                        m1Pred = '下'; m1Rule = '条件7：全远均下，初筛远均下→下';
                     }
                 }
             }
@@ -1806,13 +1830,6 @@
                     }
                 }
             }
-            // === 有初筛时（有无细筛均可）——即使有细筛但上面规则未命中，也会进入此块 ===
-            if (!m1Pred && coarseSummary && coarseRows.length > 0) {
-                // 规则7：全数据远距离均下，初筛远距离均下→下
-                if (allEqual(fullSummary.far, '下') && allEqual(coarseSummary.far, '下')) {
-                    m1Pred = '下'; m1Rule = '条件7：全远均下，初筛远均下→下';
-                }
-            }
             // === 无初筛时 ===
             if (!m1Pred && coarseRows.length === 0) {
                 // 规则14：全均上→上；全均下→下
@@ -1820,6 +1837,15 @@
                     m1Pred = '上'; m1Rule = '条件14：无初筛，全数据各格均上→上';
                 } else if (allEqual(fullSummary.near, '下') && allEqual(fullSummary.far, '下')) {
                     m1Pred = '下'; m1Rule = '条件14：无初筛，全数据各格均下→下';
+                }
+                // 规则16：全近各格至少含一走，全远各格不含上→下盘或走盘
+                if (!m1Pred) {
+                    var fullNearAllHaveZou16 = allCellsHave(fullSummary.near, '走');
+                    var fullFarNoShang16 = true;
+                    for (var i = 0; i < fullSummary.far.length; i++) { if (fullSummary.far[i]['上']) fullFarNoShang16 = false; }
+                    if (fullNearAllHaveZou16 && fullFarNoShang16) {
+                        m1Pred = '下盘或走盘'; m1Rule = '条件16：无初筛，全近各格含走，全远各格无上→下盘或走盘';
+                    }
                 }
             }
 
