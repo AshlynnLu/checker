@@ -1748,14 +1748,14 @@
                         m1Pred = '走'; m1Rule = '条件11：细筛均走且全近综合/初筛近综合均走→走';
                     }
                 }
-                // 规则12：所有单元格均无走，全远均下，初筛和细筛近均下→下
+                // 规则12：所有单元格均无走，全数据远距离以及初筛和细筛近距离各单元格均为下→下
                 if (!m1Pred && coarseSummary) {
                     var allNoZou12 = !hasZou(fullSummary);
                     var fullFarAllXia12 = allEqual(fullSummary.far, '下');
                     var fineNearAllXia12 = allEqual(fineSummary.near, '下');
                     var coarseNearAllXia12 = allEqual(coarseSummary.near, '下');
                     if (allNoZou12 && fullFarAllXia12 && fineNearAllXia12 && coarseNearAllXia12) {
-                        m1Pred = '下'; m1Rule = '条件12：全无走，全远均下，初筛细筛近均下→下';
+                        m1Pred = '下'; m1Rule = '条件12：全无走，全远及初筛细筛近均下→下';
                     }
                 }
                 // 规则17：细筛近均上，初筛远/全近/全远/初筛近各组不均上不均下且无走→上
