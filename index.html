@@ -1674,15 +1674,16 @@
                         m1Pred = '上'; m1Rule = '条件1：细筛近均下远均下，初筛远均上→上';
                     }
                 }
-                // 规则2：有细筛，全数据至少一格含走，初筛近综合不为走，初筛远各格不为上→上
+                // 规则2：有细筛，全数据至少一格含走，初筛近综合不为走，初筛远各格不为上，细筛远均下→上
                 if (!m1Pred) {
                     var anyCellHasZou = false;
                     for (var i = 0; i < fullSummary.near.length; i++) { if (fullSummary.near[i]['走']) anyCellHasZou = true; }
                     for (var i = 0; i < fullSummary.far.length; i++) { if (fullSummary.far[i]['走']) anyCellHasZou = true; }
                     var coarseNearZhNotZou = !coarseSummary || !coarseSummary.near[3]['走'];
                     var coarseFarNotAllShang = !coarseSummary || !allEqual(coarseSummary.far, '上');
-                    if (anyCellHasZou && coarseNearZhNotZou && coarseFarNotAllShang) {
-                        m1Pred = '上'; m1Rule = '条件2：有细筛，全数据含走且初筛近综合非走且初筛远非均上→上';
+                    var fineFarAllXia2 = allEqual(fineSummary.far, '下');
+                    if (anyCellHasZou && coarseNearZhNotZou && coarseFarNotAllShang && fineFarAllXia2) {
+                        m1Pred = '上'; m1Rule = '条件2：有细筛，全数据含走，初筛近综合非走，初筛远非均上，细筛远均下→上';
                     }
                 }
                 // 规则4：细筛近均下，远不均上/均下且无走，初筛近综合下远综合上→下
